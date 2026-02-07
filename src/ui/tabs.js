@@ -2,7 +2,6 @@ import { renderAmazonSummaries } from "./amazon/amazon.summary.js";
 
 export function renderTabs() {
   const tabsContainer = document.getElementById("mp-tabs");
-  const content = document.getElementById("tab-content");
 
   tabsContainer.innerHTML = `
     <div class="tabs-container">
@@ -13,24 +12,23 @@ export function renderTabs() {
     </div>
   `;
 
-  // Default load
+  // DEFAULT LOAD
   renderAmazonSummaries();
 
-  const tabs = tabsContainer.querySelectorAll(".tab");
-
-  tabs.forEach(tab => {
+  tabsContainer.querySelectorAll(".tab").forEach(tab => {
     tab.addEventListener("click", () => {
-      tabs.forEach(t => t.classList.remove("active"));
+      tabsContainer
+        .querySelectorAll(".tab")
+        .forEach(t => t.classList.remove("active"));
+
       tab.classList.add("active");
 
-      const mp = tab.dataset.mp;
-
-      if (mp === "amazon") {
+      if (tab.dataset.mp === "amazon") {
         renderAmazonSummaries();
       } else {
-        content.innerHTML = `
-          <div class="placeholder">
-            ${tab.textContent} UI will be added next
+        document.getElementById("tab-content").innerHTML = `
+          <div class="placeholder-row">
+            ${tab.textContent} UI will be connected later
           </div>
         `;
       }
