@@ -1,4 +1,4 @@
-import { exportMp } from "../services/export.service.js";
+import { exportByFc } from "../services/export.service.js";
 
 export function renderHeader() {
   const header = document.getElementById("app-header");
@@ -6,6 +6,7 @@ export function renderHeader() {
   header.innerHTML = `
     <div class="header-container">
 
+      <!-- LEFT: LOGO -->
       <div class="header-left">
         <img
           src="assets/logo/logo.png"
@@ -14,6 +15,7 @@ export function renderHeader() {
         />
       </div>
 
+      <!-- CENTER: TITLE -->
       <div class="header-center">
         <h1 class="app-title">Shipment Planner</h1>
         <p class="app-subtitle">
@@ -21,8 +23,9 @@ export function renderHeader() {
         </p>
       </div>
 
+      <!-- RIGHT: EXPORT -->
       <div class="header-right">
-        <button id="export-btn" class="export-btn">
+        <button id="export-btn" class="export-btn" type="button">
           Export
         </button>
       </div>
@@ -30,15 +33,8 @@ export function renderHeader() {
     </div>
   `;
 
-  document.getElementById("export-btn").onclick = () => {
-    const activeTab =
-      document.querySelector(".mp-tab.active")?.dataset?.mp;
-
-    if (!activeTab || activeTab === "SELLER") {
-      alert("Export available only for Amazon / Flipkart / Myntra");
-      return;
-    }
-
-    exportMp(activeTab);
+  const btn = document.getElementById("export-btn");
+  btn.onclick = () => {
+    exportByFc();
   };
 }
