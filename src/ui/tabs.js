@@ -1,4 +1,4 @@
-import { renderAmazonSummaries } from "./amazon/amazon.summary.js";
+import { loadAmazonTab, loadFlipkartTab } from "../app.js";
 
 export function renderTabs() {
   const tabsContainer = document.getElementById("mp-tabs");
@@ -12,9 +12,6 @@ export function renderTabs() {
     </div>
   `;
 
-  // DEFAULT LOAD
-  renderAmazonSummaries();
-
   tabsContainer.querySelectorAll(".tab").forEach(tab => {
     tab.addEventListener("click", () => {
       tabsContainer
@@ -23,12 +20,16 @@ export function renderTabs() {
 
       tab.classList.add("active");
 
-      if (tab.dataset.mp === "amazon") {
-        renderAmazonSummaries();
+      const mp = tab.dataset.mp;
+
+      if (mp === "amazon") {
+        loadAmazonTab();
+      } else if (mp === "flipkart") {
+        loadFlipkartTab();
       } else {
         document.getElementById("tab-content").innerHTML = `
           <div class="placeholder-row">
-            ${tab.textContent} UI will be connected later
+            ${tab.textContent} will be enabled later
           </div>
         `;
       }
