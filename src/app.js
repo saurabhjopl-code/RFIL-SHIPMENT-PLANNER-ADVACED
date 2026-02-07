@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     const data = await loadAllData(updateProgress);
 
-    // GLOBAL UNIWARE 40% CAP
+    // 🔒 GLOBAL UNIWARE 40% CAP
     const totalUniware = data.uniwareStock.reduce(
       (s, u) => s + u.quantity,
       0
@@ -34,8 +34,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     setAmazonStore(amazonResult);
 
-    console.group("🟦 AMAZON ENGINE OUTPUT");
-    console.log("Rows:", amazonResult.rows);
+    console.group("🟦 AMAZON ENGINE VALIDATION");
+    console.log("Total Amazon Rows:", amazonResult.rows.length);
+    console.table(amazonResult.rows.slice(0, 10)); // 👈 show first 10 rows
     console.log("Uniware Used:", amazonResult.uniwareUsed);
     console.groupEnd();
 
