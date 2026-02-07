@@ -1,8 +1,6 @@
 /* ======================================================
-   AMAZON ENGINE – VA4.3 (FINAL)
-   - DRR is FC-row based (Sale Qty / 30)
-   - SKU aggregation ONLY for Uniware allocation
-   - Shipment logic uses row DRR
+   AMAZON ENGINE – VA4.3 (DRR ROUNDED VERSION)
+   🔒 DRR is rounded to 2 decimals and used everywhere
 ====================================================== */
 
 const TARGET_DAYS = 45;
@@ -15,6 +13,10 @@ function groupBy(arr, keyFn) {
     acc[key].push(item);
     return acc;
   }, {});
+}
+
+function round2(num) {
+  return Math.round(num * 100) / 100;
 }
 
 export function runAmazonEngine({
@@ -32,11 +34,9 @@ export function runAmazonEngine({
   );
 
   /* ----- AMAZON SALES ONLY ----- */
-  const amazonSales = sales.filter(
-    r => r.mp === "AMAZON IN"
-  );
+  const amazonSales = sales.filter(r => r.mp === "AMAZON IN");
 
-  /* ----- GROUP SALES BY SKU (FOR UNIWARE ALLOCATION ONLY) ----- */
+  /* ----- GROUP SALES BY SKU (FOR UNIWARE ONLY) ----- */
   const salesBySku = groupBy(amazonSales, r => r.sku);
 
   /* ----- AMAZON FC STOCK MAP ----- */
@@ -54,9 +54,6 @@ export function runAmazonEngine({
   const results = [];
   let uniwareUsed = 0;
 
-  /* ======================================================
-     PROCESS EACH SKU
-  ===================================================== */
   Object.entries(salesBySku).forEach(([sku, skuRows]) => {
     const totalSkuSale = skuRows.reduce((s, r) => s + r.quantity, 0);
     const uniwareSku = skuRows[0].uniwareSku;
@@ -70,20 +67,20 @@ export function runAmazonEngine({
       )
     );
 
-    /* ----- FC LEVEL ----- */
     Object.values(groupBy(skuRows, r => r.warehouseId)).forEach(fcRows => {
       const r0 = fcRows[0];
       const saleQty = fcRows.reduce((s, r) => s + r.quantity, 0);
 
-      // ✅ CORRECT DRR (ROW BASED)
-      const drr = saleQty / 30;
+      /* ✅ DRR FORCED TO 2 DECIMALS */
+      const rawDRR = saleQty / 30;
+      const drr = round2(rawDRR);
 
       const fcKey = `${sku}__${r0.warehouseId}`;
       const fcQty = fcStockMap[fcKey] || 0;
 
-      const stockCover = drr > 0 ? fcQty / drr : 0;
+      const stockCover = drr > 0 ? round2(fcQty / drr) : 0;
 
-      /* ----- CLOSED OVERRIDE ----- */
+      /* ----- CLOSED ----- */
       if (closedStyles.has(r0.styleId)) {
         results.push({
           mp: "AMAZON IN",
@@ -118,7 +115,6 @@ export function runAmazonEngine({
           ? Math.max(0, Math.ceil(TARGET_DAYS * drr - fcQty))
           : 0;
 
-      /* ----- FINAL SHIPMENT (UNIWARE CAPPED) ----- */
       const shipmentQty = Math.min(
         actualShipmentQty,
         allocatableUniware
