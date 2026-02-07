@@ -6,6 +6,8 @@ import {
   updateProgress,
   completeProgress,
 } from "./ui/progress.js";
+import { runAmazonEngine } from "./engines/amazon.engine.js";
+import { setAmazonStore } from "./stores/amazon.store.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
   renderHeader();
@@ -15,15 +17,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     const data = await loadAllData(updateProgress);
 
-    console.group("📦 RAW DATA LOADED");
-    console.log("Sales:", data.sales.length);
-    console.log("FC Stock:", data.fcStock.length);
-    console.log("Uniware Stock:", data.uniwareStock.length);
-    console.log("Company Remarks:", data.companyRemarks.length);
+    // GLOBAL UNIWARE 40% CAP
+    const totalUniware = data.uniwareStock.reduce(
+      (s, u) => s + u.quantity,
+      0
+    );
+    const uniware40Cap = Math.floor(totalUniware * 0.4);
+
+    const amazonResult = runAmazonEngine({
+      sales: data.sales,
+      fcStock: data.fcStock,
+      uniwareStock: data.uniwareStock,
+      companyRemarks: data.companyRemarks,
+      uniware40CapRemaining: uniware40Cap,
+    });
+
+    setAmazonStore(amazonResult);
+
+    console.group("🟦 AMAZON ENGINE OUTPUT");
+    console.log("Rows:", amazonResult.rows);
+    console.log("Uniware Used:", amazonResult.uniwareUsed);
     console.groupEnd();
 
     completeProgress();
-  } catch (error) {
-    console.error("❌ Data loading failed", error);
+  } catch (err) {
+    console.error("❌ Amazon calculation failed", err);
   }
 });
