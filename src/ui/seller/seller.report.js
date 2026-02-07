@@ -1,12 +1,54 @@
 import { getSellerRows } from "../../stores/seller.store.js";
 
 /* ======================================================
-   SELLER SUMMARY
+   SELLER SUMMARY (EXECUTABLE ONLY)
+   - Excludes DEFAULT_FC / N.A
 ====================================================== */
 function renderSellerSummary(rows) {
-  const totalSale = rows.reduce((s, r) => s + r.saleQty, 0);
-  const totalActual = rows.reduce((s, r) => s + r.actualShipmentQty, 0);
-  const totalShip = rows.reduce((s, r) => s + r.shipmentQty, 0);
+  const validRows = rows.filter(
+    r =>
+      r.replenishmentFc &&
+      r.replenishmentFc !== "DEFAULT_FC" &&
+      r.replenishmentMp &&
+      r.replenishmentMp !== "N/A" &&
+      r.shipmentQty > 0
+  );
+
+  if (validRows.length === 0) {
+    return `
+      <section class="summary-section">
+        <h2 class="summary-title">Seller Summary</h2>
+        <div class="no-data">No executable seller shipments</div>
+      </section>
+    `;
+  }
+
+  const summaryMap = {};
+
+  validRows.forEach(r => {
+    const key = `${r.replenishmentMp}__${r.replenishmentFc}`;
+    if (!summaryMap[key]) {
+      summaryMap[key] = {
+        mp: r.replenishmentMp,
+        fc: r.replenishmentFc,
+        actual: 0,
+        ship: 0,
+      };
+    }
+    summaryMap[key].actual += r.actualShipmentQty;
+    summaryMap[key].ship += r.shipmentQty;
+  });
+
+  const rowsHtml = Object.values(summaryMap)
+    .map(s => `
+      <tr>
+        <td>${s.mp}</td>
+        <td>${s.fc}</td>
+        <td>${s.actual}</td>
+        <td class="ship-col">${s.ship}</td>
+      </tr>
+    `)
+    .join("");
 
   return `
     <section class="summary-section">
@@ -14,17 +56,14 @@ function renderSellerSummary(rows) {
       <table class="summary-table">
         <thead>
           <tr>
-            <th>Total Sale</th>
+            <th>Replenishment MP</th>
+            <th>Replenishment FC</th>
             <th>Actual Shipment Qty</th>
-            <th>Shipment Qty</th>
+            <th class="ship-col">Shipment Qty</th>
           </tr>
         </thead>
         <tbody>
-          <tr class="grand-total">
-            <td><b>${totalSale}</b></td>
-            <td><b>${totalActual}</b></td>
-            <td><b>${totalShip}</b></td>
-          </tr>
+          ${rowsHtml}
         </tbody>
       </table>
     </section>
@@ -32,11 +71,12 @@ function renderSellerSummary(rows) {
 }
 
 /* ======================================================
-   SELLER SHIPMENT REPORT
+   SELLER SHIPMENT REPORT (UNCHANGED)
 ====================================================== */
 export function renderSellerReport() {
-  const rows = [...getSellerRows()]
-    .sort((a, b) => b.saleQty - a.saleQty);
+  const rows = [...getSellerRows()].sort(
+    (a, b) => b.saleQty - a.saleQty
+  );
 
   const body = rows.length
     ? rows.map(r => `
