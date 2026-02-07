@@ -45,14 +45,16 @@ function renderSellerSummary(rows) {
 
   const rowsHtml = Object.values(summaryMap)
     .sort((a, b) => a.mp.localeCompare(b.mp))
-    .map(s => `
-      <tr>
-        <td>${s.mp}</td>
-        <td>${s.fc}</td>
-        <td>${s.actual}</td>
-        <td class="ship-col">${s.ship}</td>
-      </tr>
-    `)
+    .map(
+      s => `
+        <tr>
+          <td>${s.mp}</td>
+          <td>${s.fc}</td>
+          <td>${s.actual}</td>
+          <td class="ship-col">${s.ship}</td>
+        </tr>
+      `
+    )
     .join("");
 
   const grandTotalRow = `
@@ -94,48 +96,58 @@ export function renderSellerReport() {
   );
 
   const body = rows.length
-    ? rows.map(r => {
-        const isDefaultFc = r.replenishmentFc === "DEFAULT_FC";
+    ? rows
+        .map(r => {
+          const isDefaultFc = r.replenishmentFc === "DEFAULT_FC";
 
-        const warningBadge = isDefaultFc
-          ? `<span class="warn-badge" title="No MP or FC stock history found. FC not assigned.">⚠ Needs FC Mapping</span>`
-          : "";
+          const warningBadge = isDefaultFc
+            ? `<span class="warn-badge" title="No MP or FC stock history found. FC not assigned.">⚠ Needs FC Mapping</span>`
+            : "";
 
-        return `
-          <tr>
-            <td>${r.styleId}</td>
-            <td>${r.sku}</td>
-            <td>SELLER</td>
-            <td>
-              ${r.replenishmentFc || "-"}
-              ${warningBadge}
-            </td>
-            <td>${r.replenishmentMp || "-"}</td>
-            <td>${r.saleQty}</td>
-            <td>${r.drr.toFixed(2)}</td>
-            <td>${r.actualShipmentQty}</td>
-            <td class="ship-col">${r.shipmentQty}</td>
-            <td>
-              <span class="action ${r.action.toLowerCase()}">
-                ${r.action}
-              </span>
-            </td>
-            <td>${r.remark || ""}</td>
-          </tr>
-        `;
-      }).join("")
-    : `<tr><td colspan="11" class="no-data">No results</td></tr>`;
+          return `
+            <tr>
+              <td>${r.styleId}</td>
+              <td>${r.sku}</td>
+              <td>SELLER</td>
+              <td>
+                ${r.replenishmentFc || "-"}
+                ${warningBadge}
+              </td>
+              <td>${r.replenishmentMp || "-"}</td>
+              <td>${r.saleQty}</td>
+              <td>${r.drr.toFixed(2)}</td>
+              <td>${r.actualShipmentQty}</td>
+              <td class="ship-col">${r.shipmentQty}</td>
+              <td>
+                <span class="action ${r.action.toLowerCase()}">
+                  ${r.action}
+                </span>
+              </td>
+              <td>${r.remark || ""}</td>
+            </tr>
+          `;
+        })
+        .join("")
+    : `<tr class="no-data-row"><td colspan="11" class="no-data">No results</td></tr>`;
 
-  // Attach search AFTER render (safe)
+  /* ======================================================
+     SEARCH BINDING (SAFE, REPEATABLE)
+  ====================================================== */
   setTimeout(() => {
     const searchInput = document.getElementById("seller-search");
     const tbody = document.getElementById("seller-report-body");
     if (!searchInput || !tbody) return;
 
+    // overwrite safely every time tab loads
     searchInput.onkeyup = () => {
       const q = searchInput.value.toLowerCase();
+
       Array.from(tbody.querySelectorAll("tr")).forEach(tr => {
-        tr.style.display = tr.innerText.toLowerCase().includes(q)
+        if (tr.classList.contains("no-data-row")) return;
+
+        tr.style.display = tr.innerText
+          .toLowerCase()
+          .includes(q)
           ? ""
           : "none";
       });
