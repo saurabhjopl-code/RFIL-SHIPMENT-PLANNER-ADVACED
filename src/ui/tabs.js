@@ -1,4 +1,8 @@
-import { loadAmazonTab, loadFlipkartTab } from "../app.js";
+import {
+  loadAmazonTab,
+  loadFlipkartTab,
+  loadMyntraTab,
+} from "../app.js";
 
 export function renderTabs() {
   const tabsContainer = document.getElementById("mp-tabs");
@@ -26,6 +30,8 @@ export function renderTabs() {
         loadAmazonTab();
       } else if (mp === "flipkart") {
         loadFlipkartTab();
+      } else if (mp === "myntra") {
+        loadMyntraTab();
       } else {
         document.getElementById("tab-content").innerHTML = `
           <div class="placeholder-row">
