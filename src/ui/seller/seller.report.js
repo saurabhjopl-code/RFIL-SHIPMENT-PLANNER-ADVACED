@@ -38,23 +38,31 @@ function renderSellerSummary(rows) {
     }
     summaryMap[key].actual += r.actualShipmentQty;
     summaryMap[key].ship += r.shipmentQty;
+
     grandActual += r.actualShipmentQty;
     grandShip += r.shipmentQty;
   });
 
   const rowsHtml = Object.values(summaryMap)
     .sort((a, b) => a.mp.localeCompare(b.mp))
-    .map(
-      s => `
-        <tr>
-          <td>${s.mp}</td>
-          <td>${s.fc}</td>
-          <td>${s.actual}</td>
-          <td class="ship-col">${s.ship}</td>
-        </tr>
-      `
-    )
+    .map(s => `
+      <tr>
+        <td>${s.mp}</td>
+        <td>${s.fc}</td>
+        <td>${s.actual}</td>
+        <td class="ship-col">${s.ship}</td>
+      </tr>
+    `)
     .join("");
+
+  const grandTotalRow = `
+    <tr class="grand-total">
+      <td><b>ALL</b></td>
+      <td><b>ALL</b></td>
+      <td><b>${grandActual}</b></td>
+      <td class="ship-col"><b>${grandShip}</b></td>
+    </tr>
+  `;
 
   return `
     <section class="summary-section">
@@ -70,12 +78,7 @@ function renderSellerSummary(rows) {
         </thead>
         <tbody>
           ${rowsHtml}
-          <tr class="grand-total">
-            <td><b>ALL</b></td>
-            <td><b>ALL</b></td>
-            <td><b>${grandActual}</b></td>
-            <td class="ship-col"><b>${grandShip}</b></td>
-          </tr>
+          ${grandTotalRow}
         </tbody>
       </table>
     </section>
@@ -91,42 +94,48 @@ export function renderSellerReport() {
   );
 
   const body = rows.length
-    ? rows
-        .map(r => {
-          const warningBadge =
-            r.replenishmentFc === "DEFAULT_FC"
-              ? `<span class="warn-badge" title="No MP or FC stock history found. FC not assigned.">⚠ Needs FC Mapping</span>`
-              : "";
+    ? rows.map(r => {
+        const isDefaultFc = r.replenishmentFc === "DEFAULT_FC";
 
-          return `
-            <tr>
-              <td>${r.styleId}</td>
-              <td>${r.sku}</td>
-              <td>SELLER</td>
-              <td>${r.replenishmentFc || "-"} ${warningBadge}</td>
-              <td>${r.replenishmentMp || "-"}</td>
-              <td>${r.saleQty}</td>
-              <td>${r.drr.toFixed(2)}</td>
-              <td>${r.actualShipmentQty}</td>
-              <td class="ship-col">${r.shipmentQty}</td>
-              <td>${r.action}</td>
-              <td>${r.remark || ""}</td>
-            </tr>
-          `;
-        })
-        .join("")
+        const warningBadge = isDefaultFc
+          ? `<span class="warn-badge" title="No MP or FC stock history found. FC not assigned.">⚠ Needs FC Mapping</span>`
+          : "";
+
+        return `
+          <tr>
+            <td>${r.styleId}</td>
+            <td>${r.sku}</td>
+            <td>SELLER</td>
+            <td>
+              ${r.replenishmentFc || "-"}
+              ${warningBadge}
+            </td>
+            <td>${r.replenishmentMp || "-"}</td>
+            <td>${r.saleQty}</td>
+            <td>${r.drr.toFixed(2)}</td>
+            <td>${r.actualShipmentQty}</td>
+            <td class="ship-col">${r.shipmentQty}</td>
+            <td>
+              <span class="action ${r.action.toLowerCase()}">
+                ${r.action}
+              </span>
+            </td>
+            <td>${r.remark || ""}</td>
+          </tr>
+        `;
+      }).join("")
     : `<tr><td colspan="11" class="no-data">No results</td></tr>`;
 
-  // SAFE search binding (overwrite, no assumptions)
+  // Attach search AFTER render (safe)
   setTimeout(() => {
-    const input = document.getElementById("seller-search");
+    const searchInput = document.getElementById("seller-search");
     const tbody = document.getElementById("seller-report-body");
-    if (!input || !tbody) return;
+    if (!searchInput || !tbody) return;
 
-    input.onkeyup = () => {
-      const q = input.value.toLowerCase();
-      Array.from(tbody.rows).forEach(row => {
-        row.style.display = row.innerText.toLowerCase().includes(q)
+    searchInput.onkeyup = () => {
+      const q = searchInput.value.toLowerCase();
+      Array.from(tbody.querySelectorAll("tr")).forEach(tr => {
+        tr.style.display = tr.innerText.toLowerCase().includes(q)
           ? ""
           : "none";
       });
@@ -141,8 +150,9 @@ export function renderSellerReport() {
         <h2 class="report-title">Seller Shipment Report</h2>
         <input
           id="seller-search"
-          class="table-search"
+          type="text"
           placeholder="Search Style / SKU / FC / MP"
+          class="table-search"
         />
       </div>
 

@@ -7,39 +7,30 @@ import {
   completeProgress,
 } from "./ui/progress.js";
 
-/* ================= EXPORT ================= */
-import { exportShipmentPlanner } from "./core/export.service.js";
-
-/* ================= AMAZON ================= */
+/* AMAZON */
 import { runAmazonEngine } from "./engines/amazon.engine.js";
 import { setAmazonStore } from "./stores/amazon.store.js";
 import { renderAmazonSummaries } from "./ui/amazon/amazon.summary.js";
 
-/* ================= FLIPKART ================= */
+/* FLIPKART */
 import { runFlipkartEngine } from "./engines/flipkart.engine.js";
 import { setFlipkartRows } from "./stores/flipkart.store.js";
 import { renderFlipkartSummaries } from "./ui/flipkart/flipkart.summary.js";
 
-/* ================= MYNTRA ================= */
+/* MYNTRA */
 import { runMyntraEngine } from "./engines/myntra.engine.js";
 import { setMyntraRows } from "./stores/myntra.store.js";
 import { renderMyntraSummaries } from "./ui/myntra/myntra.summary.js";
 
-/* ================= SELLER ================= */
+/* SELLER */
 import { runSellerEngine } from "./engines/seller.engine.js";
 import { setSellerRows } from "./stores/seller.store.js";
 import { renderSellerReport } from "./ui/seller/seller.report.js";
 
-/* ======================================================
-   GLOBAL STATE
-====================================================== */
 let cachedData = null;
 let uniware40Cap = 0;
 let uniwareUsedByMPs = 0;
 
-/* ======================================================
-   APP INIT
-====================================================== */
 document.addEventListener("DOMContentLoaded", async () => {
   renderHeader();
   renderTabs();
@@ -55,7 +46,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
     uniware40Cap = Math.floor(totalUniware * 0.4);
 
-    /* ================= AMAZON (DEFAULT LOAD) ================= */
+    /* ================= AMAZON ================= */
     const amazonResult = runAmazonEngine({
       sales: cachedData.sales,
       fcStock: cachedData.fcStock,
@@ -66,25 +57,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     setAmazonStore(amazonResult);
     uniwareUsedByMPs += amazonResult.uniwareUsed;
-
     renderAmazonSummaries();
 
     completeProgress();
   } catch (err) {
     console.error("❌ App initialization failed", err);
   }
-
-  /* ================= EXPORT BUTTON ================= */
-  const exportBtn = document.getElementById("export-btn");
-  if (exportBtn) {
-    exportBtn.addEventListener("click", () => {
-      exportShipmentPlanner();
-    });
-  }
 });
 
 /* ======================================================
-   TAB LOADERS (LOCKED)
+   TAB LOADERS
 ====================================================== */
 
 export function loadAmazonTab() {
