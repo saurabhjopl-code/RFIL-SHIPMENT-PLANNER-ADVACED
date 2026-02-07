@@ -22,8 +22,14 @@ import { runMyntraEngine } from "./engines/myntra.engine.js";
 import { setMyntraRows } from "./stores/myntra.store.js";
 import { renderMyntraSummaries } from "./ui/myntra/myntra.summary.js";
 
+/* SELLER */
+import { runSellerEngine } from "./engines/seller.engine.js";
+import { setSellerRows } from "./stores/seller.store.js";
+import { renderSellerReport } from "./ui/seller/seller.report.js";
+
 let cachedData = null;
 let uniware40Cap = 0;
+let uniwareUsedByMPs = 0;
 
 document.addEventListener("DOMContentLoaded", async () => {
   renderHeader();
@@ -40,7 +46,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
     uniware40Cap = Math.floor(totalUniware * 0.4);
 
-    /* ================= AMAZON (DEFAULT LOAD) ================= */
+    /* ================= AMAZON ================= */
     const amazonResult = runAmazonEngine({
       sales: cachedData.sales,
       fcStock: cachedData.fcStock,
@@ -50,6 +56,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     setAmazonStore(amazonResult);
+    uniwareUsedByMPs += amazonResult.uniwareUsed;
     renderAmazonSummaries();
 
     completeProgress();
@@ -59,7 +66,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 /* ======================================================
-   TAB LOADERS (CALLED FROM tabs.js)
+   TAB LOADERS
 ====================================================== */
 
 export function loadAmazonTab() {
@@ -72,10 +79,12 @@ export function loadFlipkartTab() {
     fcStock: cachedData.fcStock,
     uniwareStock: cachedData.uniwareStock,
     companyRemarks: cachedData.companyRemarks,
-    uniware40CapRemaining: uniware40Cap,
+    uniware40CapRemaining: uniware40Cap - uniwareUsedByMPs,
   });
 
   setFlipkartRows(flipkartResult.rows);
+  uniwareUsedByMPs += flipkartResult.uniwareUsed;
+
   renderFlipkartSummaries();
 }
 
@@ -85,9 +94,25 @@ export function loadMyntraTab() {
     fcStock: cachedData.fcStock,
     uniwareStock: cachedData.uniwareStock,
     companyRemarks: cachedData.companyRemarks,
-    uniware40CapRemaining: uniware40Cap,
+    uniware40CapRemaining: uniware40Cap - uniwareUsedByMPs,
   });
 
   setMyntraRows(myntraResult.rows);
+  uniwareUsedByMPs += myntraResult.uniwareUsed;
+
   renderMyntraSummaries();
+}
+
+export function loadSellerTab() {
+  const sellerResult = runSellerEngine({
+    sales: cachedData.sales,
+    uniwareStock: cachedData.uniwareStock,
+    companyRemarks: cachedData.companyRemarks,
+    uniware40CapRemaining: uniware40Cap - uniwareUsedByMPs,
+  });
+
+  setSellerRows(sellerResult.rows);
+
+  const container = document.getElementById("tab-content");
+  container.innerHTML = renderSellerReport();
 }
