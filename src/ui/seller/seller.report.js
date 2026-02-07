@@ -38,7 +38,6 @@ function renderSellerSummary(rows) {
     }
     summaryMap[key].actual += r.actualShipmentQty;
     summaryMap[key].ship += r.shipmentQty;
-
     grandActual += r.actualShipmentQty;
     grandShip += r.shipmentQty;
   });
@@ -57,15 +56,6 @@ function renderSellerSummary(rows) {
     )
     .join("");
 
-  const grandTotalRow = `
-    <tr class="grand-total">
-      <td><b>ALL</b></td>
-      <td><b>ALL</b></td>
-      <td><b>${grandActual}</b></td>
-      <td class="ship-col"><b>${grandShip}</b></td>
-    </tr>
-  `;
-
   return `
     <section class="summary-section">
       <h2 class="summary-title">Seller Summary</h2>
@@ -80,7 +70,12 @@ function renderSellerSummary(rows) {
         </thead>
         <tbody>
           ${rowsHtml}
-          ${grandTotalRow}
+          <tr class="grand-total">
+            <td><b>ALL</b></td>
+            <td><b>ALL</b></td>
+            <td><b>${grandActual}</b></td>
+            <td class="ship-col"><b>${grandShip}</b></td>
+          </tr>
         </tbody>
       </table>
     </section>
@@ -98,56 +93,40 @@ export function renderSellerReport() {
   const body = rows.length
     ? rows
         .map(r => {
-          const isDefaultFc = r.replenishmentFc === "DEFAULT_FC";
-
-          const warningBadge = isDefaultFc
-            ? `<span class="warn-badge" title="No MP or FC stock history found. FC not assigned.">⚠ Needs FC Mapping</span>`
-            : "";
+          const warningBadge =
+            r.replenishmentFc === "DEFAULT_FC"
+              ? `<span class="warn-badge" title="No MP or FC stock history found. FC not assigned.">⚠ Needs FC Mapping</span>`
+              : "";
 
           return `
             <tr>
               <td>${r.styleId}</td>
               <td>${r.sku}</td>
               <td>SELLER</td>
-              <td>
-                ${r.replenishmentFc || "-"}
-                ${warningBadge}
-              </td>
+              <td>${r.replenishmentFc || "-"} ${warningBadge}</td>
               <td>${r.replenishmentMp || "-"}</td>
               <td>${r.saleQty}</td>
               <td>${r.drr.toFixed(2)}</td>
               <td>${r.actualShipmentQty}</td>
               <td class="ship-col">${r.shipmentQty}</td>
-              <td>
-                <span class="action ${r.action.toLowerCase()}">
-                  ${r.action}
-                </span>
-              </td>
+              <td>${r.action}</td>
               <td>${r.remark || ""}</td>
             </tr>
           `;
         })
         .join("")
-    : `<tr class="no-data-row"><td colspan="11" class="no-data">No results</td></tr>`;
+    : `<tr><td colspan="11" class="no-data">No results</td></tr>`;
 
-  /* ======================================================
-     SEARCH BINDING (SAFE, REPEATABLE)
-  ====================================================== */
+  // SAFE search binding (overwrite, no assumptions)
   setTimeout(() => {
-    const searchInput = document.getElementById("seller-search");
+    const input = document.getElementById("seller-search");
     const tbody = document.getElementById("seller-report-body");
-    if (!searchInput || !tbody) return;
+    if (!input || !tbody) return;
 
-    // overwrite safely every time tab loads
-    searchInput.onkeyup = () => {
-      const q = searchInput.value.toLowerCase();
-
-      Array.from(tbody.querySelectorAll("tr")).forEach(tr => {
-        if (tr.classList.contains("no-data-row")) return;
-
-        tr.style.display = tr.innerText
-          .toLowerCase()
-          .includes(q)
+    input.onkeyup = () => {
+      const q = input.value.toLowerCase();
+      Array.from(tbody.rows).forEach(row => {
+        row.style.display = row.innerText.toLowerCase().includes(q)
           ? ""
           : "none";
       });
@@ -162,9 +141,8 @@ export function renderSellerReport() {
         <h2 class="report-title">Seller Shipment Report</h2>
         <input
           id="seller-search"
-          type="text"
-          placeholder="Search Style / SKU / FC / MP"
           class="table-search"
+          placeholder="Search Style / SKU / FC / MP"
         />
       </div>
 
