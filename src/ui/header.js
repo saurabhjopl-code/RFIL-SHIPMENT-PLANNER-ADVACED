@@ -1,10 +1,11 @@
+import { exportAllMPs } from "../services/export.service.js";
+
 export function renderHeader() {
   const header = document.getElementById("app-header");
 
   header.innerHTML = `
     <div class="header-container">
 
-      <!-- LEFT: LOGO -->
       <div class="header-left">
         <img
           src="assets/logo/logo.png"
@@ -13,7 +14,6 @@ export function renderHeader() {
         />
       </div>
 
-      <!-- CENTER: TITLE -->
       <div class="header-center">
         <h1 class="app-title">Shipment Planner</h1>
         <p class="app-subtitle">
@@ -21,13 +21,15 @@ export function renderHeader() {
         </p>
       </div>
 
-      <!-- RIGHT: EXPORT -->
       <div class="header-right">
-        <button id="export-btn" class="export-btn" type="button">
+        <button id="export-btn" class="export-btn">
           Export
         </button>
       </div>
 
     </div>
   `;
+
+  const btn = document.getElementById("export-btn");
+  btn.onclick = () => exportAllMPs();
 }
