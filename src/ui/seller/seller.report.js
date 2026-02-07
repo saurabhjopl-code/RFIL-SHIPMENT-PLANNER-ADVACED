@@ -2,6 +2,8 @@ import { getSellerRows } from "../../stores/seller.store.js";
 
 /* ======================================================
    SELLER SUMMARY (EXECUTABLE ONLY)
+   - Sorted by Replenishment MP (A-Z)
+   - Includes Grand Total
 ====================================================== */
 function renderSellerSummary(rows) {
   const validRows = rows.filter(
@@ -23,6 +25,8 @@ function renderSellerSummary(rows) {
   }
 
   const summaryMap = {};
+  let grandActual = 0;
+  let grandShip = 0;
 
   validRows.forEach(r => {
     const key = `${r.replenishmentMp}__${r.replenishmentFc}`;
@@ -36,9 +40,13 @@ function renderSellerSummary(rows) {
     }
     summaryMap[key].actual += r.actualShipmentQty;
     summaryMap[key].ship += r.shipmentQty;
+
+    grandActual += r.actualShipmentQty;
+    grandShip += r.shipmentQty;
   });
 
   const rowsHtml = Object.values(summaryMap)
+    .sort((a, b) => a.mp.localeCompare(b.mp))
     .map(s => `
       <tr>
         <td>${s.mp}</td>
@@ -48,6 +56,15 @@ function renderSellerSummary(rows) {
       </tr>
     `)
     .join("");
+
+  const grandTotalRow = `
+    <tr class="grand-total">
+      <td><b>ALL</b></td>
+      <td><b>ALL</b></td>
+      <td><b>${grandActual}</b></td>
+      <td class="ship-col"><b>${grandShip}</b></td>
+    </tr>
+  `;
 
   return `
     <section class="summary-section">
@@ -63,6 +80,7 @@ function renderSellerSummary(rows) {
         </thead>
         <tbody>
           ${rowsHtml}
+          ${grandTotalRow}
         </tbody>
       </table>
     </section>
@@ -147,7 +165,6 @@ export function renderSellerReport() {
     </section>
   `;
 
-  // Render
   const container = document.getElementById("tab-content");
   container.innerHTML = html;
 
