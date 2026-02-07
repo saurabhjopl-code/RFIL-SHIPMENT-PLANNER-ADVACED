@@ -1,7 +1,7 @@
 /* ======================================================
-   EXPORT SERVICE – VA-EXPORT
-   - One Excel file
-   - Separate sheet per MP
+   PER-MP EXPORT SERVICE – VA-EXPORT
+   - Export per MP tab
+   - Seller rows merged into MP
    - DEFAULT_FC excluded
 ====================================================== */
 
@@ -10,6 +10,9 @@ import { getFlipkartRows } from "../stores/flipkart.store.js";
 import { getMyntraRows } from "../stores/myntra.store.js";
 import { getSellerRows } from "../stores/seller.store.js";
 
+/* ------------------------------------------------------
+   Safety
+------------------------------------------------------ */
 function ensureXLSX() {
   if (!window.XLSX) {
     alert("Export library not loaded");
@@ -18,103 +21,82 @@ function ensureXLSX() {
   return true;
 }
 
-function sheetFromRows(rows, columns) {
-  return XLSX.utils.json_to_sheet(
-    rows.map(r => {
-      const obj = {};
-      columns.forEach(c => (obj[c] = r[c] ?? ""));
-      return obj;
-    })
-  );
+/* ------------------------------------------------------
+   Build unified shipment rows
+------------------------------------------------------ */
+function buildMpExportRows(mp) {
+  let mpRows = [];
+
+  if (mp === "AMAZON") {
+    const store = getAmazonStore();
+    mpRows = store?.rows || [];
+  }
+  if (mp === "FLIPKART") {
+    mpRows = getFlipkartRows();
+  }
+  if (mp === "MYNTRA") {
+    mpRows = getMyntraRows();
+  }
+
+  const sellerRows = getSellerRows()
+    .filter(
+      r =>
+        r.replenishmentMp === mp &&
+        r.replenishmentFc &&
+        r.replenishmentFc !== "DEFAULT_FC" &&
+        r.shipmentQty > 0
+    )
+    .map(r => ({
+      styleId: r.styleId,
+      sku: r.sku,
+      fc: r.replenishmentFc,
+      saleQty: r.saleQty,
+      drr: r.drr,
+      fcStock: "",
+      stockCover: "",
+      actualShipmentQty: r.actualShipmentQty,
+      shipmentQty: r.shipmentQty,
+      recallQty: 0,
+      action: "SHIP",
+      remark: "From SELLER allocation",
+    }));
+
+  return [...mpRows, ...sellerRows];
 }
 
-export function exportAllMPs() {
+/* ------------------------------------------------------
+   Export handler
+------------------------------------------------------ */
+export function exportMp(mp) {
   if (!ensureXLSX()) return;
 
+  const rows = buildMpExportRows(mp);
+  if (!rows.length) {
+    alert(`No shipment data available for ${mp}`);
+    return;
+  }
+
+  const sheetData = rows.map(r => ({
+    Style: r.styleId,
+    SKU: r.sku,
+    FC: r.fc,
+    "Sale Qty": r.saleQty,
+    DRR: r.drr,
+    "FC Stock": r.fcStock,
+    "Stock Cover": r.stockCover,
+    "Actual Shipment Qty": r.actualShipmentQty,
+    "Shipment Qty": r.shipmentQty,
+    "Recall Qty": r.recallQty,
+    Action: r.action,
+    Remarks: r.remark || "",
+  }));
+
   const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(sheetData);
+  XLSX.utils.book_append_sheet(wb, ws, "Shipments");
 
-  /* ================= AMAZON ================= */
-  const amazonStore = getAmazonStore();
-  if (amazonStore?.rows?.length) {
-    const rows = amazonStore.rows;
-    const sheet = sheetFromRows(rows, [
-      "styleId",
-      "sku",
-      "warehouseId",
-      "saleQty",
-      "drr",
-      "fcStock",
-      "stockCover",
-      "actualShipmentQty",
-      "shipmentQty",
-      "recallQty",
-      "action",
-      "remark",
-    ]);
-    XLSX.utils.book_append_sheet(wb, sheet, "Amazon");
-  }
-
-  /* ================= FLIPKART ================= */
-  const flipkartRows = getFlipkartRows();
-  if (flipkartRows.length) {
-    const sheet = sheetFromRows(flipkartRows, [
-      "styleId",
-      "sku",
-      "warehouseId",
-      "saleQty",
-      "drr",
-      "fcStock",
-      "stockCover",
-      "actualShipmentQty",
-      "shipmentQty",
-      "recallQty",
-      "action",
-      "remark",
-    ]);
-    XLSX.utils.book_append_sheet(wb, sheet, "Flipkart");
-  }
-
-  /* ================= MYNTRA ================= */
-  const myntraRows = getMyntraRows();
-  if (myntraRows.length) {
-    const sheet = sheetFromRows(myntraRows, [
-      "styleId",
-      "sku",
-      "warehouseId",
-      "saleQty",
-      "drr",
-      "fcStock",
-      "stockCover",
-      "actualShipmentQty",
-      "shipmentQty",
-      "recallQty",
-      "action",
-      "remark",
-    ]);
-    XLSX.utils.book_append_sheet(wb, sheet, "Myntra");
-  }
-
-  /* ================= SELLER ================= */
-  const sellerRows = getSellerRows().filter(
-    r => r.replenishmentFc && r.replenishmentFc !== "DEFAULT_FC"
+  XLSX.writeFile(
+    wb,
+    `Shipment_${mp}_${new Date().toISOString().slice(0, 10)}.xlsx`
   );
-
-  if (sellerRows.length) {
-    const sheet = sheetFromRows(sellerRows, [
-      "styleId",
-      "sku",
-      "replenishmentMp",
-      "replenishmentFc",
-      "saleQty",
-      "drr",
-      "actualShipmentQty",
-      "shipmentQty",
-      "action",
-      "remark",
-    ]);
-    XLSX.utils.book_append_sheet(wb, sheet, "Seller");
-  }
-
-  XLSX.writeFile(wb, "Shipment_Planner_Export.xlsx");
 }
-
