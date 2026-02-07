@@ -6,11 +6,12 @@ export function renderHeader() {
 
       <!-- LEFT: LOGO -->
       <div class="header-left">
-        <img 
-          src="/RFIL-SHIPMENT-PLANNER-ADVACED/src/assets/logo/your-logo.png" 
-          alt="Company Logo" 
-          class="app-logo"
-        />
+        <img
+  src="assets/logo/logo.png"
+  alt="Company Logo"
+  class="app-logo"
+/>
+
       </div>
 
       <!-- CENTER: TITLE -->
@@ -31,4 +32,5 @@ export function renderHeader() {
     </div>
   `;
 }
+
 
