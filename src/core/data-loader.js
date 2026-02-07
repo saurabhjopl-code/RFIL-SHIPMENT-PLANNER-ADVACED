@@ -1,23 +1,25 @@
-/* ======================================================
-   DATA LOADER – RAW DATA INGESTION ONLY
-   No calculations
-   No filtering
-   No mutation
-====================================================== */
-
-const SOURCES = {
-  SALES_30D:
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vRarC7jnt04o-cSMEJN-h3nrbNyhgd-JCoxy6B0oDwwlX09SLQjB4kMJIOkeLRXy9RId28iJjbTd8Tm/pub?gid=1268196089&single=true&output=csv",
-
-  FC_STOCK:
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vRarC7jnt04o-cSMEJN-h3nrbNyhgd-JCoxy6B0oDwwlX09SLQjB4kMJIOkeLRXy9RId28iJjbTd8Tm/pub?gid=2046154602&single=true&output=csv",
-
-  UNIWARE_STOCK:
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vRarC7jnt04o-cSMEJN-h3nrbNyhgd-JCoxy6B0oDwwlX09SLQjB4kMJIOkeLRXy9RId28iJjbTd8Tm/pub?gid=535319358&single=true&output=csv",
-
-  COMPANY_REMARKS:
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vRarC7jnt04o-cSMEJN-h3nrbNyhgd-JCoxy6B0oDwwlX09SLQjB4kMJIOkeLRXy9RId28iJjbTd8Tm/pub?gid=998019043&single=true&output=csv",
-};
+const SOURCES = [
+  {
+    key: "sales",
+    label: "Loading Sales (30D)",
+    url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRarC7jnt04o-cSMEJN-h3nrbNyhgd-JCoxy6B0oDwwlX09SLQjB4kMJIOkeLRXy9RId28iJjbTd8Tm/pub?gid=1268196089&single=true&output=csv",
+  },
+  {
+    key: "fcStock",
+    label: "Loading FC Stock",
+    url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRarC7jnt04o-cSMEJN-h3nrbNyhgd-JCoxy6B0oDwwlX09SLQjB4kMJIOkeLRXy9RId28iJjbTd8Tm/pub?gid=2046154602&single=true&output=csv",
+  },
+  {
+    key: "uniwareStock",
+    label: "Loading Uniware Stock",
+    url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRarC7jnt04o-cSMEJN-h3nrbNyhgd-JCoxy6B0oDwwlX09SLQjB4kMJIOkeLRXy9RId28iJjbTd8Tm/pub?gid=535319358&single=true&output=csv",
+  },
+  {
+    key: "companyRemarks",
+    label: "Loading Company Remarks",
+    url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRarC7jnt04o-cSMEJN-h3nrbNyhgd-JCoxy6B0oDwwlX09SLQjB4kMJIOkeLRXy9RId28iJjbTd8Tm/pub?gid=998019043&single=true&output=csv",
+  },
+];
 
 /* ---------- CSV PARSER ---------- */
 function parseCSV(text) {
@@ -28,35 +30,40 @@ function parseCSV(text) {
     const values = line.split(",");
     const row = {};
     headers.forEach((h, i) => {
-      row[h] = values[i] ? values[i].trim() : "";
+      row[h] = values[i]?.trim() ?? "";
     });
     return row;
   });
 }
 
-/* ---------- LOAD CSV ---------- */
 async function loadCSV(url) {
-  const response = await fetch(url);
-  const text = await response.text();
+  const res = await fetch(url);
+  const text = await res.text();
   return parseCSV(text);
 }
 
-/* ---------- PUBLIC LOADER ---------- */
-export async function loadAllData() {
-  const [
-    rawSales,
-    rawFcStock,
-    rawUniwareStock,
-    rawRemarks,
-  ] = await Promise.all([
-    loadCSV(SOURCES.SALES_30D),
-    loadCSV(SOURCES.FC_STOCK),
-    loadCSV(SOURCES.UNIWARE_STOCK),
-    loadCSV(SOURCES.COMPANY_REMARKS),
-  ]);
+/* ---------- PUBLIC LOADER WITH PROGRESS ---------- */
+export async function loadAllData(onProgress) {
+  const result = {};
+  const total = SOURCES.length;
+
+  for (let i = 0; i < total; i++) {
+    const source = SOURCES[i];
+
+    const percent = Math.round((i / total) * 100);
+    onProgress?.(percent, source.label);
+
+    const raw = await loadCSV(source.url);
+    result[source.key] = raw;
+
+    onProgress?.(
+      Math.round(((i + 1) / total) * 100),
+      `${source.label} ✓`
+    );
+  }
 
   return {
-    sales: rawSales.map(r => ({
+    sales: result.sales.map(r => ({
       mp: r["MP"],
       date: r["Date"],
       sku: r["SKU"],
@@ -68,19 +75,19 @@ export async function loadAllData() {
       size: r["Size"],
     })),
 
-    fcStock: rawFcStock.map(r => ({
+    fcStock: result.fcStock.map(r => ({
       mp: r["MP"],
       warehouseId: r["Warehouse Id"],
       sku: r["SKU"],
       quantity: Number(r["Quantity"] || 0),
     })),
 
-    uniwareStock: rawUniwareStock.map(r => ({
+    uniwareStock: result.uniwareStock.map(r => ({
       uniwareSku: r["Uniware SKU"],
       quantity: Number(r["Quantity"] || 0),
     })),
 
-    companyRemarks: rawRemarks.map(r => ({
+    companyRemarks: result.companyRemarks.map(r => ({
       styleId: r["Style ID"],
       category: r["Category"],
       remark: r["Company Remark"],
