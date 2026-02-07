@@ -1,9 +1,10 @@
 /* ======================================================
    AMAZON ENGINE – VA4.3 (LOCKED)
+   - MP = AMAZON IN
    - DW = MP → SKU
-   - Seller via Warehouse Id === "SELLER"
+   - Seller already filtered at data layer
    - Closed override
-   - Uniware 40% global cap (applied upstream)
+   - Uniware 40% hard cap
 ====================================================== */
 
 const TARGET_DAYS = 45;
@@ -34,19 +35,16 @@ export function runAmazonEngine({
       .map(r => r.styleId)
   );
 
-  /* ----- AMAZON SALES (SELLER FILTERED OUT) ----- */
+  /* ----- AMAZON SALES ONLY ----- */
   const amazonSales = sales.filter(
-    r =>
-      r.mp === "Amazon" &&
-      r.warehouseId !== "SELLER" &&
-      !closedStyles.has(r.styleId)
+    r => r.mp === "AMAZON IN" && !closedStyles.has(r.styleId)
   );
 
   /* ----- GROUP SALES BY SKU ----- */
   const salesBySku = groupBy(amazonSales, r => r.sku);
 
-  /* ----- FC STOCK (AMAZON) ----- */
-  const amazonFcStock = fcStock.filter(r => r.mp === "Amazon");
+  /* ----- AMAZON FC STOCK ----- */
+  const amazonFcStock = fcStock.filter(r => r.mp === "AMAZON IN");
   const fcStockBySkuFc = groupBy(
     amazonFcStock,
     r => `${r.sku}__${r.warehouseId}`
@@ -65,12 +63,6 @@ export function runAmazonEngine({
     const totalSkuSale = rows.reduce((s, r) => s + r.quantity, 0);
     const drr = totalSkuSale / 30;
 
-    // DW = MP → SKU (Amazon share vs total MP sales)
-    // Since this is Amazon-only engine, DW is computed upstream later.
-    // Here we assume Amazon DW = 1 for its own engine slice.
-    const amazonDW = 1;
-
-    // Uniware allocatable for this SKU
     const uniwareSku = rows[0].uniwareSku;
     const totalUniware = uniwareMap[uniwareSku] || 0;
 
@@ -83,22 +75,20 @@ export function runAmazonEngine({
     );
 
     /* ----- FC LEVEL ----- */
-    Object.values(
-      groupBy(rows, r => r.warehouseId)
-    ).forEach(fcRows => {
+    Object.values(groupBy(rows, r => r.warehouseId)).forEach(fcRows => {
       const warehouseId = fcRows[0].warehouseId;
-
       const saleQty = fcRows.reduce((s, r) => s + r.quantity, 0);
+
       const fcKey = `${sku}__${warehouseId}`;
       const fcQty =
         fcStockBySkuFc[fcKey]?.[0]?.quantity || 0;
 
       const stockCover = drr > 0 ? fcQty / drr : 0;
 
-      // Closed style safety (double guard)
+      /* ----- CLOSED SAFETY ----- */
       if (closedStyles.has(fcRows[0].styleId)) {
         results.push({
-          mp: "Amazon",
+          mp: "AMAZON IN",
           sku,
           styleId: fcRows[0].styleId,
           warehouseId,
@@ -115,7 +105,7 @@ export function runAmazonEngine({
         return;
       }
 
-      /* ----- RECALL CHECK ----- */
+      /* ----- RECALL ----- */
       let recallQty = 0;
       if (stockCover > RECALL_DAYS && drr > 0) {
         recallQty = Math.max(
@@ -141,7 +131,7 @@ export function runAmazonEngine({
       }
 
       results.push({
-        mp: "Amazon",
+        mp: "AMAZON IN",
         sku,
         styleId: fcRows[0].styleId,
         warehouseId,
