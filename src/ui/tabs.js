@@ -2,6 +2,7 @@ import {
   loadAmazonTab,
   loadFlipkartTab,
   loadMyntraTab,
+  loadSellerTab,
 } from "../app.js";
 
 export function renderTabs() {
@@ -26,19 +27,10 @@ export function renderTabs() {
 
       const mp = tab.dataset.mp;
 
-      if (mp === "amazon") {
-        loadAmazonTab();
-      } else if (mp === "flipkart") {
-        loadFlipkartTab();
-      } else if (mp === "myntra") {
-        loadMyntraTab();
-      } else {
-        document.getElementById("tab-content").innerHTML = `
-          <div class="placeholder-row">
-            ${tab.textContent} will be enabled later
-          </div>
-        `;
-      }
+      if (mp === "amazon") loadAmazonTab();
+      else if (mp === "flipkart") loadFlipkartTab();
+      else if (mp === "myntra") loadMyntraTab();
+      else if (mp === "seller") loadSellerTab();
     });
   });
 }
