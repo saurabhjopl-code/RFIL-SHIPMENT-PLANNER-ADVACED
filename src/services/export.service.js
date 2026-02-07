@@ -1,8 +1,8 @@
 /* ======================================================
-   PER-MP EXPORT SERVICE – VA-EXPORT
+   PER-MP EXPORT SERVICE – VA-EXPORT (FIXED FC)
    - Export per MP tab
    - Seller rows merged into MP
-   - DEFAULT_FC excluded
+   - FC always resolved
 ====================================================== */
 
 import { getAmazonStore } from "../stores/amazon.store.js";
@@ -22,7 +22,14 @@ function ensureXLSX() {
 }
 
 /* ------------------------------------------------------
-   Build unified shipment rows
+   Resolve FC consistently
+------------------------------------------------------ */
+function resolveFc(row) {
+  return row.fc || row.warehouseId || "";
+}
+
+/* ------------------------------------------------------
+   Build unified shipment rows per MP
 ------------------------------------------------------ */
 function buildMpExportRows(mp) {
   let mpRows = [];
@@ -37,6 +44,21 @@ function buildMpExportRows(mp) {
   if (mp === "MYNTRA") {
     mpRows = getMyntraRows();
   }
+
+  const normalizedMpRows = mpRows.map(r => ({
+    styleId: r.styleId,
+    sku: r.sku,
+    fc: resolveFc(r),
+    saleQty: r.saleQty,
+    drr: r.drr,
+    fcStock: r.fcStock,
+    stockCover: r.stockCover,
+    actualShipmentQty: r.actualShipmentQty,
+    shipmentQty: r.shipmentQty,
+    recallQty: r.recallQty,
+    action: r.action,
+    remark: r.remark || "",
+  }));
 
   const sellerRows = getSellerRows()
     .filter(
@@ -61,7 +83,7 @@ function buildMpExportRows(mp) {
       remark: "From SELLER allocation",
     }));
 
-  return [...mpRows, ...sellerRows];
+  return [...normalizedMpRows, ...sellerRows];
 }
 
 /* ------------------------------------------------------
@@ -88,7 +110,7 @@ export function exportMp(mp) {
     "Shipment Qty": r.shipmentQty,
     "Recall Qty": r.recallQty,
     Action: r.action,
-    Remarks: r.remark || "",
+    Remarks: r.remark,
   }));
 
   const wb = XLSX.utils.book_new();
