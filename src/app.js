@@ -8,11 +8,12 @@ import {
 } from "./ui/progress.js";
 import { runAmazonEngine } from "./engines/amazon.engine.js";
 import { setAmazonStore } from "./stores/amazon.store.js";
+import { renderAmazonSummaries } from "./ui/amazon/amazon.summary.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
   renderHeader();
   initProgress();
-  renderTabs();
+  renderTabs(); // initial shell only (no data)
 
   try {
     const data = await loadAllData(updateProgress);
@@ -24,6 +25,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
     const uniware40Cap = Math.floor(totalUniware * 0.4);
 
+    // 🔵 AMAZON ENGINE
     const amazonResult = runAmazonEngine({
       sales: data.sales,
       fcStock: data.fcStock,
@@ -34,10 +36,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     setAmazonStore(amazonResult);
 
-    console.group("🟦 AMAZON ENGINE VALIDATION");
-    console.log("Total Amazon Rows:", amazonResult.rows.length);
-    console.table(amazonResult.rows.slice(0, 10)); // 👈 show first 10 rows
-    console.log("Uniware Used:", amazonResult.uniwareUsed);
+    // ✅ 🔥 THIS IS THE MISSING LINE
+    renderAmazonSummaries();
+
+    console.group("🟦 AMAZON FINAL CONFIRMATION");
+    console.log("Rows:", amazonResult.rows.length);
     console.groupEnd();
 
     completeProgress();
