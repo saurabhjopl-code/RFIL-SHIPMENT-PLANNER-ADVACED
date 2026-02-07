@@ -1,10 +1,5 @@
 /* ======================================================
-   SELLER ENGINE – VA-SELLER (FC-WEIGHTED SPLIT)
-   - Seller sales identified by Warehouse Id === "SELLER"
-   - DRR rounded to 2 decimals
-   - Uses remaining Uniware 40% only
-   - Splits shipment across FCs using MP demand weights
-   - No recall logic
+   SELLER ENGINE – VA-SELLER (FC + MP WEIGHTED SPLIT)
 ====================================================== */
 
 const TARGET_DAYS = 45;
@@ -28,35 +23,25 @@ export function runSellerEngine({
   companyRemarks,
   uniware40CapRemaining,
 }) {
-  /* --------------------------------------------------
-     CLOSED STYLES
-  -------------------------------------------------- */
+  /* ---------------- CLOSED STYLES ---------------- */
   const closedStyles = new Set(
     companyRemarks
       .filter(r => String(r.remark).toLowerCase() === "closed")
       .map(r => r.styleId)
   );
 
-  /* --------------------------------------------------
-     SELLER SALES (WAREHOUSE PRIORITY)
-  -------------------------------------------------- */
+  /* ---------------- SELLER SALES ---------------- */
   const sellerSales = sales.filter(
     r => r.warehouseId === "SELLER"
   );
-
   const sellerBySku = groupBy(sellerSales, r => r.sku);
 
-  /* --------------------------------------------------
-     MP SALES (FOR FC WEIGHTS)
-     - Exclude SELLER warehouse
-  -------------------------------------------------- */
+  /* ---------------- MP SALES (FOR FC + MP MAP) ---------------- */
   const mpSales = sales.filter(
     r => r.warehouseId !== "SELLER"
   );
 
-  /* --------------------------------------------------
-     UNIWARE MAP
-  -------------------------------------------------- */
+  /* ---------------- UNIWARE MAP ---------------- */
   const uniwareMap = Object.fromEntries(
     uniwareStock.map(u => [u.uniwareSku, u.quantity])
   );
@@ -64,25 +49,23 @@ export function runSellerEngine({
   const results = [];
   let uniwareUsed = 0;
 
-  /* ==================================================
+  /* ======================================================
      PROCESS EACH SKU
-  ================================================== */
+  ====================================================== */
   Object.entries(sellerBySku).forEach(([sku, skuRows]) => {
     const saleQty = skuRows.reduce((s, r) => s + r.quantity, 0);
     const styleId = skuRows[0].styleId;
     const uniwareSku = skuRows[0].uniwareSku;
 
-    /* ----- DRR (ROUNDED) ----- */
     const drr = round2(saleQty / 30);
 
-    /* ----- CLOSED STYLE OVERRIDE ----- */
     if (closedStyles.has(styleId)) {
       results.push({
         mp: "SELLER",
         sku,
         styleId,
-        warehouseId: "SELLER",
         replenishmentFc: "",
+        replenishmentMp: "",
         saleQty,
         drr,
         actualShipmentQty: 0,
@@ -93,13 +76,10 @@ export function runSellerEngine({
       return;
     }
 
-    /* ----- TARGET SHIPMENT ----- */
     const actualShipmentQty =
       drr > 0 ? Math.ceil(TARGET_DAYS * drr) : 0;
 
-    /* ----- UNIWARE AVAILABILITY ----- */
     const totalUniware = uniwareMap[uniwareSku] || 0;
-
     const allocatableUniware = Math.max(
       0,
       Math.min(
@@ -118,21 +98,22 @@ export function runSellerEngine({
         mp: "SELLER",
         sku,
         styleId,
-        warehouseId: "SELLER",
         replenishmentFc: "",
+        replenishmentMp: "",
         saleQty,
         drr,
         actualShipmentQty,
         shipmentQty: 0,
         action: "NONE",
-        remark: actualShipmentQty > 0 ? "Reduced due to MP priority" : "",
+        remark:
+          actualShipmentQty > 0
+            ? "Reduced due to MP priority"
+            : "",
       });
       return;
     }
 
-    /* --------------------------------------------------
-       BUILD FC DEMAND WEIGHTS (FROM MP SALES)
-    -------------------------------------------------- */
+    /* ---------------- FC DEMAND MAP ---------------- */
     const skuMpSales = mpSales.filter(r => r.sku === sku);
 
     const fcSaleMap = {};
@@ -146,55 +127,56 @@ export function runSellerEngine({
 
     let fcAllocations = [];
 
-    /* ----- NO MP SALE EDGE CASE ----- */
     if (totalMpSale === 0) {
       fcAllocations.push({
         fc: "DEFAULT_FC",
         qty: sellerShipmentQty,
       });
     } else {
-      /* ----- INITIAL SPLIT ----- */
       Object.entries(fcSaleMap).forEach(([fc, fcSale]) => {
-        const weight = fcSale / totalMpSale;
-        const qty = Math.round(sellerShipmentQty * weight);
-
+        const qty = Math.round(
+          sellerShipmentQty * (fcSale / totalMpSale)
+        );
         fcAllocations.push({ fc, qty });
       });
 
-      /* ----- ROUNDING FIX ----- */
       const allocated = fcAllocations.reduce(
         (s, r) => s + r.qty,
         0
       );
-
       const diff = sellerShipmentQty - allocated;
 
       if (diff !== 0) {
-        // Adjust FC with highest sale
         const topFc = Object.entries(fcSaleMap)
           .sort((a, b) => b[1] - a[1])[0][0];
 
-        const target = fcAllocations.find(
-          r => r.fc === topFc
-        );
-        if (target) {
-          target.qty += diff;
-        }
+        const target = fcAllocations.find(r => r.fc === topFc);
+        if (target) target.qty += diff;
       }
     }
 
-    /* --------------------------------------------------
-       PUSH FC-LEVEL ROWS
-    -------------------------------------------------- */
+    /* ---------------- PUSH FC + MP ROWS ---------------- */
     fcAllocations.forEach(({ fc, qty }) => {
       if (qty <= 0) return;
+
+      const mpForFc = skuMpSales
+        .filter(r => r.warehouseId === fc)
+        .reduce((acc, r) => {
+          acc[r.mp] = (acc[r.mp] || 0) + r.quantity;
+          return acc;
+        }, {});
+
+      const replenishmentMp =
+        Object.entries(mpForFc).length
+          ? Object.entries(mpForFc).sort((a, b) => b[1] - a[1])[0][0]
+          : "N/A";
 
       results.push({
         mp: "SELLER",
         sku,
         styleId,
-        warehouseId: "SELLER",
         replenishmentFc: fc,
+        replenishmentMp,
         saleQty,
         drr,
         actualShipmentQty,
