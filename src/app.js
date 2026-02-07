@@ -6,45 +6,70 @@ import {
   updateProgress,
   completeProgress,
 } from "./ui/progress.js";
+
+/* AMAZON */
 import { runAmazonEngine } from "./engines/amazon.engine.js";
 import { setAmazonStore } from "./stores/amazon.store.js";
 import { renderAmazonSummaries } from "./ui/amazon/amazon.summary.js";
 
+/* FLIPKART */
+import { runFlipkartEngine } from "./engines/flipkart.engine.js";
+import { setFlipkartRows } from "./stores/flipkart.store.js";
+import { renderFlipkartSummaries } from "./ui/flipkart/flipkart.summary.js";
+
+let cachedData = null;
+let uniware40Cap = 0;
+
 document.addEventListener("DOMContentLoaded", async () => {
   renderHeader();
+  renderTabs();
   initProgress();
-  renderTabs(); // initial shell only (no data)
 
   try {
-    const data = await loadAllData(updateProgress);
+    cachedData = await loadAllData(updateProgress);
 
-    // 🔒 GLOBAL UNIWARE 40% CAP
-    const totalUniware = data.uniwareStock.reduce(
+    /* GLOBAL UNIWARE 40% CAP (LOCKED) */
+    const totalUniware = cachedData.uniwareStock.reduce(
       (s, u) => s + u.quantity,
       0
     );
-    const uniware40Cap = Math.floor(totalUniware * 0.4);
+    uniware40Cap = Math.floor(totalUniware * 0.4);
 
-    // 🔵 AMAZON ENGINE
+    /* ================= AMAZON (DEFAULT LOAD) ================= */
     const amazonResult = runAmazonEngine({
-      sales: data.sales,
-      fcStock: data.fcStock,
-      uniwareStock: data.uniwareStock,
-      companyRemarks: data.companyRemarks,
+      sales: cachedData.sales,
+      fcStock: cachedData.fcStock,
+      uniwareStock: cachedData.uniwareStock,
+      companyRemarks: cachedData.companyRemarks,
       uniware40CapRemaining: uniware40Cap,
     });
 
     setAmazonStore(amazonResult);
-
-    // ✅ 🔥 THIS IS THE MISSING LINE
     renderAmazonSummaries();
-
-    console.group("🟦 AMAZON FINAL CONFIRMATION");
-    console.log("Rows:", amazonResult.rows.length);
-    console.groupEnd();
 
     completeProgress();
   } catch (err) {
-    console.error("❌ Amazon calculation failed", err);
+    console.error("❌ App initialization failed", err);
   }
 });
+
+/* ======================================================
+   TAB SWITCH HANDLERS (CALLED FROM tabs.js)
+====================================================== */
+
+export function loadAmazonTab() {
+  renderAmazonSummaries();
+}
+
+export function loadFlipkartTab() {
+  const flipkartResult = runFlipkartEngine({
+    sales: cachedData.sales,
+    fcStock: cachedData.fcStock,
+    uniwareStock: cachedData.uniwareStock,
+    companyRemarks: cachedData.companyRemarks,
+    uniware40CapRemaining: uniware40Cap,
+  });
+
+  setFlipkartRows(flipkartResult.rows);
+  renderFlipkartSummaries();
+}
