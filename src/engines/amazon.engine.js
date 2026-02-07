@@ -1,16 +1,13 @@
 /* ======================================================
-   AMAZON ENGINE – VA4.3 (LOCKED)
-   - MP = AMAZON IN
-   - DW = MP → SKU
-   - Seller already filtered at data layer
-   - Closed override
-   - Uniware 40% hard cap
+   AMAZON ENGINE – VA4.3 (FINAL)
+   - DRR is FC-row based (Sale Qty / 30)
+   - SKU aggregation ONLY for Uniware allocation
+   - Shipment logic uses row DRR
 ====================================================== */
 
 const TARGET_DAYS = 45;
 const RECALL_DAYS = 90;
 
-/* ---------- HELPERS ---------- */
 function groupBy(arr, keyFn) {
   return arr.reduce((acc, item) => {
     const key = keyFn(item);
@@ -20,7 +17,6 @@ function groupBy(arr, keyFn) {
   }, {});
 }
 
-/* ---------- ENGINE ---------- */
 export function runAmazonEngine({
   sales,
   fcStock,
@@ -37,18 +33,18 @@ export function runAmazonEngine({
 
   /* ----- AMAZON SALES ONLY ----- */
   const amazonSales = sales.filter(
-    r => r.mp === "AMAZON IN" && !closedStyles.has(r.styleId)
+    r => r.mp === "AMAZON IN"
   );
 
-  /* ----- GROUP SALES BY SKU ----- */
+  /* ----- GROUP SALES BY SKU (FOR UNIWARE ALLOCATION ONLY) ----- */
   const salesBySku = groupBy(amazonSales, r => r.sku);
 
-  /* ----- AMAZON FC STOCK ----- */
+  /* ----- AMAZON FC STOCK MAP ----- */
   const amazonFcStock = fcStock.filter(r => r.mp === "AMAZON IN");
-  const fcStockBySkuFc = groupBy(
-    amazonFcStock,
-    r => `${r.sku}__${r.warehouseId}`
-  );
+  const fcStockMap = {};
+  amazonFcStock.forEach(r => {
+    fcStockMap[`${r.sku}__${r.warehouseId}`] = r.quantity;
+  });
 
   /* ----- UNIWARE MAP ----- */
   const uniwareMap = Object.fromEntries(
@@ -58,12 +54,12 @@ export function runAmazonEngine({
   const results = [];
   let uniwareUsed = 0;
 
-  /* ----- PROCESS EACH SKU ----- */
-  Object.entries(salesBySku).forEach(([sku, rows]) => {
-    const totalSkuSale = rows.reduce((s, r) => s + r.quantity, 0);
-    const drr = totalSkuSale / 30;
-
-    const uniwareSku = rows[0].uniwareSku;
+  /* ======================================================
+     PROCESS EACH SKU
+  ===================================================== */
+  Object.entries(salesBySku).forEach(([sku, skuRows]) => {
+    const totalSkuSale = skuRows.reduce((s, r) => s + r.quantity, 0);
+    const uniwareSku = skuRows[0].uniwareSku;
     const totalUniware = uniwareMap[uniwareSku] || 0;
 
     const allocatableUniware = Math.max(
@@ -75,23 +71,25 @@ export function runAmazonEngine({
     );
 
     /* ----- FC LEVEL ----- */
-    Object.values(groupBy(rows, r => r.warehouseId)).forEach(fcRows => {
-      const warehouseId = fcRows[0].warehouseId;
+    Object.values(groupBy(skuRows, r => r.warehouseId)).forEach(fcRows => {
+      const r0 = fcRows[0];
       const saleQty = fcRows.reduce((s, r) => s + r.quantity, 0);
 
-      const fcKey = `${sku}__${warehouseId}`;
-      const fcQty =
-        fcStockBySkuFc[fcKey]?.[0]?.quantity || 0;
+      // ✅ CORRECT DRR (ROW BASED)
+      const drr = saleQty / 30;
+
+      const fcKey = `${sku}__${r0.warehouseId}`;
+      const fcQty = fcStockMap[fcKey] || 0;
 
       const stockCover = drr > 0 ? fcQty / drr : 0;
 
-      /* ----- CLOSED SAFETY ----- */
-      if (closedStyles.has(fcRows[0].styleId)) {
+      /* ----- CLOSED OVERRIDE ----- */
+      if (closedStyles.has(r0.styleId)) {
         results.push({
           mp: "AMAZON IN",
           sku,
-          styleId: fcRows[0].styleId,
-          warehouseId,
+          styleId: r0.styleId,
+          warehouseId: r0.warehouseId,
           saleQty,
           drr,
           fcStock: fcQty,
@@ -115,12 +113,12 @@ export function runAmazonEngine({
       }
 
       /* ----- ACTUAL SHIPMENT ----- */
-      const actualShipmentQty = Math.max(
-        0,
-        Math.ceil(TARGET_DAYS * drr - fcQty)
-      );
+      const actualShipmentQty =
+        drr > 0
+          ? Math.max(0, Math.ceil(TARGET_DAYS * drr - fcQty))
+          : 0;
 
-      /* ----- FINAL SHIPMENT (CAPPED) ----- */
+      /* ----- FINAL SHIPMENT (UNIWARE CAPPED) ----- */
       const shipmentQty = Math.min(
         actualShipmentQty,
         allocatableUniware
@@ -133,8 +131,8 @@ export function runAmazonEngine({
       results.push({
         mp: "AMAZON IN",
         sku,
-        styleId: fcRows[0].styleId,
-        warehouseId,
+        styleId: r0.styleId,
+        warehouseId: r0.warehouseId,
         saleQty,
         drr,
         fcStock: fcQty,
