@@ -1,3 +1,5 @@
+import { renderAmazonSummaries } from "./amazon/amazon.summary.js";
+
 export function renderTabs() {
   const tabsContainer = document.getElementById("mp-tabs");
   const content = document.getElementById("tab-content");
@@ -11,11 +13,8 @@ export function renderTabs() {
     </div>
   `;
 
-  content.innerHTML = `
-    <div class="placeholder">
-      Amazon IN selected
-    </div>
-  `;
+  // Default load
+  renderAmazonSummaries();
 
   const tabs = tabsContainer.querySelectorAll(".tab");
 
@@ -25,11 +24,16 @@ export function renderTabs() {
       tab.classList.add("active");
 
       const mp = tab.dataset.mp;
-      content.innerHTML = `
-        <div class="placeholder">
-          ${tab.textContent} selected
-        </div>
-      `;
+
+      if (mp === "amazon") {
+        renderAmazonSummaries();
+      } else {
+        content.innerHTML = `
+          <div class="placeholder">
+            ${tab.textContent} UI will be added next
+          </div>
+        `;
+      }
     });
   });
 }
