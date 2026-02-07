@@ -8,9 +8,9 @@ import { getFlipkartRows } from "../stores/flipkart.store.js";
 import { getMyntraRows } from "../stores/myntra.store.js";
 import { getSellerRows } from "../stores/seller.store.js";
 
-function addSheet(workbook, name, rows) {
-  const worksheet = window.XLSX.utils.json_to_sheet(rows);
-  window.XLSX.utils.book_append_sheet(workbook, worksheet, name);
+function addSheet(workbook, sheetName, rows) {
+  const ws = window.XLSX.utils.json_to_sheet(rows);
+  window.XLSX.utils.book_append_sheet(workbook, ws, sheetName);
 }
 
 export function exportShipmentPlanner() {
