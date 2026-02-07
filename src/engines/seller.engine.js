@@ -1,27 +1,15 @@
 /* ======================================================
-   SELLER ENGINE – VA-SELLER (FINAL)
-   - FC weighted by MP demand
-   - Fallback to FC stock
-   - Final fallback to system FC priority
-   - No DEFAULT_FC ever
+   SELLER ENGINE – VA-SELLER (FINAL PERFORMANCE SAFE)
+   - SINGLE FC routing per SKU
+   - No FC splitting in fallback
+   - Fast & deterministic
 ====================================================== */
 
 const TARGET_DAYS = 45;
-
-/* 🔒 SYSTEM FC PRIORITY (LAST RESORT ONLY) */
 const FALLBACK_FC_PRIORITY = ["JPX1", "JPX2", "BLR1", "DEL1"];
 
 function round2(num) {
   return Math.round(num * 100) / 100;
-}
-
-function groupBy(arr, keyFn) {
-  return arr.reduce((acc, item) => {
-    const key = keyFn(item);
-    acc[key] = acc[key] || [];
-    acc[key].push(item);
-    return acc;
-  }, {});
 }
 
 export function runSellerEngine({
@@ -38,14 +26,35 @@ export function runSellerEngine({
       .map(r => r.styleId)
   );
 
-  /* ---------------- SELLER SALES ---------------- */
-  const sellerSales = sales.filter(r => r.warehouseId === "SELLER");
-  const sellerBySku = groupBy(sellerSales, r => r.sku);
+  /* ---------------- UNIWARE MAP ---------------- */
+  const uniwareMap = {};
+  uniwareStock.forEach(u => {
+    uniwareMap[u.uniwareSku] = u.quantity;
+  });
 
-  /* ---------------- MP SALES ---------------- */
-  const mpSales = sales.filter(r => r.warehouseId !== "SELLER");
+  /* ---------------- SELLER SALES BY SKU ---------------- */
+  const sellerBySku = {};
+  sales.forEach(r => {
+    if (r.warehouseId !== "SELLER") return;
+    if (!sellerBySku[r.sku]) sellerBySku[r.sku] = [];
+    sellerBySku[r.sku].push(r);
+  });
 
-  /* ---------------- FC STOCK MAP ---------------- */
+  /* ---------------- MP SALES MAP: SKU → FC → MP → QTY ---------------- */
+  const mpSalesMap = {};
+  sales.forEach(r => {
+    if (r.warehouseId === "SELLER") return;
+
+    if (!mpSalesMap[r.sku]) mpSalesMap[r.sku] = {};
+    if (!mpSalesMap[r.sku][r.warehouseId])
+      mpSalesMap[r.sku][r.warehouseId] = {};
+    if (!mpSalesMap[r.sku][r.warehouseId][r.mp])
+      mpSalesMap[r.sku][r.warehouseId][r.mp] = 0;
+
+    mpSalesMap[r.sku][r.warehouseId][r.mp] += r.quantity;
+  });
+
+  /* ---------------- FC STOCK MAP: SKU → [{fc, qty}] ---------------- */
   const fcStockBySku = {};
   fcStock.forEach(r => {
     if (!fcStockBySku[r.sku]) fcStockBySku[r.sku] = [];
@@ -55,25 +64,21 @@ export function runSellerEngine({
     });
   });
 
-  /* ---------------- UNIWARE MAP ---------------- */
-  const uniwareMap = Object.fromEntries(
-    uniwareStock.map(u => [u.uniwareSku, u.quantity])
-  );
+  /* ======================================================
+     MAIN PROCESS
+  ====================================================== */
 
   const results = [];
   let uniwareUsed = 0;
 
-  /* ======================================================
-     PROCESS EACH SKU
-  ====================================================== */
-  Object.entries(sellerBySku).forEach(([sku, skuRows]) => {
-    const saleQty = skuRows.reduce((s, r) => s + r.quantity, 0);
-    const styleId = skuRows[0].styleId;
-    const uniwareSku = skuRows[0].uniwareSku;
+  Object.entries(sellerBySku).forEach(([sku, rows]) => {
+    const saleQty = rows.reduce((s, r) => s + r.quantity, 0);
+    const styleId = rows[0].styleId;
+    const uniwareSku = rows[0].uniwareSku;
 
     const drr = round2(saleQty / 30);
 
-    /* ---------- CLOSED STYLE ---------- */
+    /* ----- CLOSED STYLE ----- */
     if (closedStyles.has(styleId)) {
       results.push({
         mp: "SELLER",
@@ -128,103 +133,62 @@ export function runSellerEngine({
       return;
     }
 
-    /* ======================================================
-       1️⃣ MP FC WEIGHTED SPLIT
-    ====================================================== */
-    const skuMpSales = mpSales.filter(r => r.sku === sku);
-    const fcSaleMap = {};
+    /* ==================================================
+       FC SELECTION (SINGLE FC)
+    ================================================== */
 
-    skuMpSales.forEach(r => {
-      fcSaleMap[r.warehouseId] =
-        (fcSaleMap[r.warehouseId] || 0) + r.quantity;
+    let selectedFc = "";
+    let replenishmentMp = "";
+
+    const skuMpData = mpSalesMap[sku] || {};
+
+    /* 1️⃣ Highest MP demand FC */
+    let maxSale = 0;
+    Object.entries(skuMpData).forEach(([fc, mpMap]) => {
+      const fcSale = Object.values(mpMap).reduce((s, v) => s + v, 0);
+      if (fcSale > maxSale) {
+        maxSale = fcSale;
+        selectedFc = fc;
+        replenishmentMp = Object.entries(mpMap)
+          .sort((a, b) => b[1] - a[1])[0][0];
+      }
     });
 
-    const totalMpSale = Object.values(fcSaleMap).reduce(
-      (s, v) => s + v,
-      0
-    );
-
-    let allocations = [];
-
-    if (totalMpSale > 0) {
-      Object.entries(fcSaleMap).forEach(([fc, fcSale]) => {
-        allocations.push({
-          fc,
-          qty: Math.round(
-            sellerShipmentQty * (fcSale / totalMpSale)
-          ),
-          mp: Object.entries(
-            skuMpSales
-              .filter(r => r.warehouseId === fc)
-              .reduce((a, r) => {
-                a[r.mp] = (a[r.mp] || 0) + r.quantity;
-                return a;
-              }, {})
-          ).sort((a, b) => b[1] - a[1])[0][0],
-        });
-      });
-
-      const allocated = allocations.reduce(
-        (s, r) => s + r.qty,
-        0
-      );
-      const diff = sellerShipmentQty - allocated;
-
-      if (diff !== 0) {
-        allocations.sort((a, b) => b.qty - a.qty)[0].qty += diff;
-      }
-    }
-
-    /* ======================================================
-       2️⃣ FALLBACK TO FC STOCK
-    ====================================================== */
-    if (allocations.length === 0) {
+    /* 2️⃣ Fallback to highest FC stock */
+    if (!selectedFc) {
       const stockFcs = (fcStockBySku[sku] || []).sort(
         (a, b) => b.qty - a.qty
       );
-
       if (stockFcs.length > 0) {
-        allocations.push({
-          fc: stockFcs[0].fc,
-          qty: sellerShipmentQty,
-          mp: "MIXED",
-        });
+        selectedFc = stockFcs[0].fc;
+        replenishmentMp = "MIXED";
       }
     }
 
-    /* ======================================================
-       3️⃣ SYSTEM FALLBACK
-    ====================================================== */
-    if (allocations.length === 0) {
-      allocations.push({
-        fc: FALLBACK_FC_PRIORITY[0],
-        qty: sellerShipmentQty,
-        mp: "SYSTEM",
-      });
+    /* 3️⃣ System fallback */
+    if (!selectedFc) {
+      selectedFc = FALLBACK_FC_PRIORITY[0];
+      replenishmentMp = "SYSTEM";
     }
 
-    /* ======================================================
-       PUSH ROWS
-    ====================================================== */
-    allocations.forEach(a => {
-      if (a.qty <= 0) return;
-
-      results.push({
-        mp: "SELLER",
-        sku,
-        styleId,
-        replenishmentFc: a.fc,
-        replenishmentMp: a.mp,
-        saleQty,
-        drr,
-        actualShipmentQty,
-        shipmentQty: a.qty,
-        action: "SHIP",
-        remark:
-          sellerShipmentQty < actualShipmentQty
-            ? "Reduced due to MP priority"
-            : "",
-      });
+    /* ==================================================
+       PUSH FINAL ROW
+    ================================================== */
+    results.push({
+      mp: "SELLER",
+      sku,
+      styleId,
+      replenishmentFc: selectedFc,
+      replenishmentMp,
+      saleQty,
+      drr,
+      actualShipmentQty,
+      shipmentQty: sellerShipmentQty,
+      action: "SHIP",
+      remark:
+        sellerShipmentQty < actualShipmentQty
+          ? "Reduced due to MP priority"
+          : "",
     });
 
     uniwareUsed += sellerShipmentQty;
