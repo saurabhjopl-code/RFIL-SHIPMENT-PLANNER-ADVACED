@@ -7,22 +7,25 @@ import {
   completeProgress,
 } from "./ui/progress.js";
 
-/* AMAZON */
+/* ================= EXPORT ================= */
+import { exportShipmentPlanner } from "./core/export.service.js";
+
+/* ================= AMAZON ================= */
 import { runAmazonEngine } from "./engines/amazon.engine.js";
 import { setAmazonStore } from "./stores/amazon.store.js";
 import { renderAmazonSummaries } from "./ui/amazon/amazon.summary.js";
 
-/* FLIPKART */
+/* ================= FLIPKART ================= */
 import { runFlipkartEngine } from "./engines/flipkart.engine.js";
 import { setFlipkartRows } from "./stores/flipkart.store.js";
 import { renderFlipkartSummaries } from "./ui/flipkart/flipkart.summary.js";
 
-/* MYNTRA */
+/* ================= MYNTRA ================= */
 import { runMyntraEngine } from "./engines/myntra.engine.js";
 import { setMyntraRows } from "./stores/myntra.store.js";
 import { renderMyntraSummaries } from "./ui/myntra/myntra.summary.js";
 
-/* SELLER */
+/* ================= SELLER ================= */
 import { runSellerEngine } from "./engines/seller.engine.js";
 import { setSellerRows } from "./stores/seller.store.js";
 import { renderSellerReport } from "./ui/seller/seller.report.js";
@@ -39,12 +42,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     cachedData = await loadAllData(updateProgress);
 
+    /* GLOBAL UNIWARE 40% CAP (LOCKED) */
     const totalUniware = cachedData.uniwareStock.reduce(
       (s, u) => s + u.quantity,
       0
     );
     uniware40Cap = Math.floor(totalUniware * 0.4);
 
+    /* ================= AMAZON ================= */
     const amazonResult = runAmazonEngine({
       sales: cachedData.sales,
       fcStock: cachedData.fcStock,
@@ -61,9 +66,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   } catch (err) {
     console.error("❌ App initialization failed", err);
   }
+
+  /* ================= EXPORT BUTTON ================= */
+  const exportBtn = document.getElementById("export-btn");
+  if (exportBtn) {
+    exportBtn.onclick = () => exportShipmentPlanner();
+  }
 });
 
-/* TAB LOADERS */
+/* ======================================================
+   TAB LOADERS (LOCKED)
+====================================================== */
 
 export function loadAmazonTab() {
   renderAmazonSummaries();
@@ -80,6 +93,7 @@ export function loadFlipkartTab() {
 
   setFlipkartRows(flipkartResult.rows);
   uniwareUsedByMPs += flipkartResult.uniwareUsed;
+
   renderFlipkartSummaries();
 }
 
@@ -94,6 +108,7 @@ export function loadMyntraTab() {
 
   setMyntraRows(myntraResult.rows);
   uniwareUsedByMPs += myntraResult.uniwareUsed;
+
   renderMyntraSummaries();
 }
 
@@ -106,6 +121,7 @@ export function loadSellerTab() {
   });
 
   setSellerRows(sellerResult.rows);
-  document.getElementById("tab-content").innerHTML =
-    renderSellerReport();
+
+  const container = document.getElementById("tab-content");
+  container.innerHTML = renderSellerReport();
 }
