@@ -2,8 +2,6 @@ import { getSellerRows } from "../../stores/seller.store.js";
 
 /* ======================================================
    SELLER SUMMARY (EXECUTABLE ONLY)
-   - Sorted by Replenishment MP (A-Z)
-   - Includes Grand Total
 ====================================================== */
 function renderSellerSummary(rows) {
   const validRows = rows.filter(
@@ -88,47 +86,63 @@ function renderSellerSummary(rows) {
 }
 
 /* ======================================================
-   SELLER REPORT
+   SELLER REPORT (RETURNS HTML ONLY)
 ====================================================== */
 export function renderSellerReport() {
   const rows = [...getSellerRows()].sort(
     (a, b) => b.saleQty - a.saleQty
   );
 
-  const body = rows
-    .map(r => {
-      const isDefaultFc = r.replenishmentFc === "DEFAULT_FC";
+  const body = rows.length
+    ? rows.map(r => {
+        const isDefaultFc = r.replenishmentFc === "DEFAULT_FC";
 
-      const warningBadge = isDefaultFc
-        ? `<span class="warn-badge" title="No MP or FC stock history found. FC not assigned.">⚠ Needs FC Mapping</span>`
-        : "";
+        const warningBadge = isDefaultFc
+          ? `<span class="warn-badge" title="No MP or FC stock history found. FC not assigned.">⚠ Needs FC Mapping</span>`
+          : "";
 
-      return `
-        <tr>
-          <td>${r.styleId}</td>
-          <td>${r.sku}</td>
-          <td>SELLER</td>
-          <td>
-            ${r.replenishmentFc || "-"}
-            ${warningBadge}
-          </td>
-          <td>${r.replenishmentMp || "-"}</td>
-          <td>${r.saleQty}</td>
-          <td>${r.drr.toFixed(2)}</td>
-          <td>${r.actualShipmentQty}</td>
-          <td class="ship-col">${r.shipmentQty}</td>
-          <td>
-            <span class="action ${r.action.toLowerCase()}">
-              ${r.action}
-            </span>
-          </td>
-          <td>${r.remark || ""}</td>
-        </tr>
-      `;
-    })
-    .join("");
+        return `
+          <tr>
+            <td>${r.styleId}</td>
+            <td>${r.sku}</td>
+            <td>SELLER</td>
+            <td>
+              ${r.replenishmentFc || "-"}
+              ${warningBadge}
+            </td>
+            <td>${r.replenishmentMp || "-"}</td>
+            <td>${r.saleQty}</td>
+            <td>${r.drr.toFixed(2)}</td>
+            <td>${r.actualShipmentQty}</td>
+            <td class="ship-col">${r.shipmentQty}</td>
+            <td>
+              <span class="action ${r.action.toLowerCase()}">
+                ${r.action}
+              </span>
+            </td>
+            <td>${r.remark || ""}</td>
+          </tr>
+        `;
+      }).join("")
+    : `<tr><td colspan="11" class="no-data">No results</td></tr>`;
 
-  const html = `
+  // Attach search AFTER render (safe)
+  setTimeout(() => {
+    const searchInput = document.getElementById("seller-search");
+    const tbody = document.getElementById("seller-report-body");
+    if (!searchInput || !tbody) return;
+
+    searchInput.onkeyup = () => {
+      const q = searchInput.value.toLowerCase();
+      Array.from(tbody.querySelectorAll("tr")).forEach(tr => {
+        tr.style.display = tr.innerText.toLowerCase().includes(q)
+          ? ""
+          : "none";
+      });
+    };
+  }, 0);
+
+  return `
     ${renderSellerSummary(rows)}
 
     <section class="report-section">
@@ -159,27 +173,9 @@ export function renderSellerReport() {
           </tr>
         </thead>
         <tbody id="seller-report-body">
-          ${body || `<tr><td colspan="11" class="no-data">No results</td></tr>`}
+          ${body}
         </tbody>
       </table>
     </section>
   `;
-
-  const container = document.getElementById("tab-content");
-  container.innerHTML = html;
-
-  /* ======================================================
-     SEARCH HANDLER (REPORT ONLY)
-  ====================================================== */
-  const searchInput = document.getElementById("seller-search");
-  const tbody = document.getElementById("seller-report-body");
-
-  searchInput.addEventListener("keyup", () => {
-    const q = searchInput.value.toLowerCase();
-
-    Array.from(tbody.querySelectorAll("tr")).forEach(tr => {
-      const text = tr.innerText.toLowerCase();
-      tr.style.display = text.includes(q) ? "" : "none";
-    });
-  });
 }
