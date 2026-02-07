@@ -2,7 +2,6 @@ import { getSellerRows } from "../../stores/seller.store.js";
 
 /* ======================================================
    SELLER SUMMARY (EXECUTABLE ONLY)
-   - Excludes DEFAULT_FC / N.A
 ====================================================== */
 function renderSellerSummary(rows) {
   const validRows = rows.filter(
@@ -71,20 +70,30 @@ function renderSellerSummary(rows) {
 }
 
 /* ======================================================
-   SELLER SHIPMENT REPORT (UNCHANGED)
+   SELLER REPORT
 ====================================================== */
 export function renderSellerReport() {
   const rows = [...getSellerRows()].sort(
     (a, b) => b.saleQty - a.saleQty
   );
 
-  const body = rows.length
-    ? rows.map(r => `
+  const body = rows
+    .map(r => {
+      const isDefaultFc = r.replenishmentFc === "DEFAULT_FC";
+
+      const warningBadge = isDefaultFc
+        ? `<span class="warn-badge" title="No MP or FC stock history found. FC not assigned.">⚠ Needs FC Mapping</span>`
+        : "";
+
+      return `
         <tr>
           <td>${r.styleId}</td>
           <td>${r.sku}</td>
           <td>SELLER</td>
-          <td>${r.replenishmentFc || "-"}</td>
+          <td>
+            ${r.replenishmentFc || "-"}
+            ${warningBadge}
+          </td>
           <td>${r.replenishmentMp || "-"}</td>
           <td>${r.saleQty}</td>
           <td>${r.drr.toFixed(2)}</td>
@@ -97,14 +106,11 @@ export function renderSellerReport() {
           </td>
           <td>${r.remark || ""}</td>
         </tr>
-      `).join("")
-    : `
-        <tr>
-          <td colspan="11" class="no-data">No results</td>
-        </tr>
       `;
+    })
+    .join("");
 
-  return `
+  const html = `
     ${renderSellerSummary(rows)}
 
     <section class="report-section">
@@ -113,7 +119,7 @@ export function renderSellerReport() {
         <input
           id="seller-search"
           type="text"
-          placeholder="Search SKU / Style / FC / MP"
+          placeholder="Search Style / SKU / FC / MP"
           class="table-search"
         />
       </div>
@@ -134,10 +140,29 @@ export function renderSellerReport() {
             <th>Remarks</th>
           </tr>
         </thead>
-        <tbody>
-          ${body}
+        <tbody id="seller-report-body">
+          ${body || `<tr><td colspan="11" class="no-data">No results</td></tr>`}
         </tbody>
       </table>
     </section>
   `;
+
+  // Render
+  const container = document.getElementById("tab-content");
+  container.innerHTML = html;
+
+  /* ======================================================
+     SEARCH HANDLER (REPORT ONLY)
+  ====================================================== */
+  const searchInput = document.getElementById("seller-search");
+  const tbody = document.getElementById("seller-report-body");
+
+  searchInput.addEventListener("keyup", () => {
+    const q = searchInput.value.toLowerCase();
+
+    Array.from(tbody.querySelectorAll("tr")).forEach(tr => {
+      const text = tr.innerText.toLowerCase();
+      tr.style.display = text.includes(q) ? "" : "none";
+    });
+  });
 }
