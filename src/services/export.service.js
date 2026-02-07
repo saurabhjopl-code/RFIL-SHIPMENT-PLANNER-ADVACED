@@ -1,8 +1,8 @@
 /* ======================================================
-   PER-MP EXPORT SERVICE – VA-EXPORT (FIXED FC)
+   PER-MP EXPORT SERVICE – VA-EXPORT (WITH SOURCE)
    - Export per MP tab
    - Seller rows merged into MP
-   - FC always resolved
+   - Source column added
 ====================================================== */
 
 import { getAmazonStore } from "../stores/amazon.store.js";
@@ -45,7 +45,9 @@ function buildMpExportRows(mp) {
     mpRows = getMyntraRows();
   }
 
+  /* ---------- MP ENGINE ROWS ---------- */
   const normalizedMpRows = mpRows.map(r => ({
+    source: "MP",
     styleId: r.styleId,
     sku: r.sku,
     fc: resolveFc(r),
@@ -60,6 +62,7 @@ function buildMpExportRows(mp) {
     remark: r.remark || "",
   }));
 
+  /* ---------- SELLER → MP ROWS ---------- */
   const sellerRows = getSellerRows()
     .filter(
       r =>
@@ -69,6 +72,7 @@ function buildMpExportRows(mp) {
         r.shipmentQty > 0
     )
     .map(r => ({
+      source: "SELLER",
       styleId: r.styleId,
       sku: r.sku,
       fc: r.replenishmentFc,
@@ -99,6 +103,7 @@ export function exportMp(mp) {
   }
 
   const sheetData = rows.map(r => ({
+    Source: r.source,
     Style: r.styleId,
     SKU: r.sku,
     FC: r.fc,
