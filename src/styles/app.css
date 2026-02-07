@@ -1,7 +1,4 @@
-/* ===== EXISTING STYLES (unchanged parts omitted for brevity in explanation)
-   FULL FILE BELOW – safe to replace entirely
-===== */
-
+/* ===== GLOBAL ===== */
 * {
   margin: 0;
   padding: 0;
@@ -10,14 +7,13 @@
 }
 
 #app {
-  width: 100%;
-  min-height: 100vh;
   background-color: #f5f7fa;
+  min-height: 100vh;
 }
 
-/* HEADER */
+/* ===== HEADER ===== */
 #app-header {
-  background-color: #ffffff;
+  background: #ffffff;
   border-bottom: 1px solid #e1e4e8;
 }
 
@@ -47,17 +43,17 @@
 }
 
 .export-btn {
-  background-color: #2563eb;
-  color: white;
+  background: #2563eb;
+  color: #fff;
   border: none;
   padding: 8px 14px;
   border-radius: 4px;
   cursor: pointer;
 }
 
-/* TABS */
+/* ===== TABS ===== */
 #mp-tabs {
-  background-color: #ffffff;
+  background: #ffffff;
   border-bottom: 1px solid #e1e4e8;
 }
 
@@ -70,25 +66,25 @@
 .tab {
   padding: 8px 16px;
   border: 1px solid #e1e4e8;
-  background-color: #f9fafb;
+  background: #f9fafb;
   cursor: pointer;
   font-size: 13px;
   border-radius: 4px;
 }
 
 .tab.active {
-  background-color: #2563eb;
+  background: #2563eb;
   color: #ffffff;
 }
 
-/* CONTENT */
+/* ===== CONTENT ===== */
 #app-content {
   padding: 20px;
 }
 
-/* SUMMARY SECTIONS */
+/* ===== SUMMARY ===== */
 .summary-section {
-  background-color: #ffffff;
+  background: #ffffff;
   border: 1px solid #e1e4e8;
   border-radius: 6px;
   padding: 16px;
@@ -101,7 +97,6 @@
   margin-bottom: 12px;
 }
 
-/* TABLES */
 .summary-table {
   width: 100%;
   border-collapse: collapse;
@@ -116,11 +111,59 @@
 }
 
 .summary-table th {
-  background-color: #f9fafb;
+  background: #f9fafb;
+}
+
+/* ===== REPORT ===== */
+.report-section {
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.report-title {
+  font-size: 16px;
   font-weight: 600;
 }
 
-/* HIGHLIGHT COLUMNS */
+.report-search {
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  width: 220px;
+  background-color: #f9fafb;
+  cursor: not-allowed;
+}
+
+/* ===== REPORT TABLE ===== */
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.report-table th,
+.report-table td {
+  border: 1px solid #e5e7eb;
+  padding: 8px;
+  text-align: center;
+}
+
+.report-table th {
+  background: #f9fafb;
+  font-weight: 600;
+}
+
+/* ===== HIGHLIGHTS ===== */
 .ship-col {
   background-color: #ecfdf5;
   color: #047857;
@@ -131,8 +174,33 @@
   color: #b91c1c;
 }
 
+/* ===== ACTION PILL (PREVIEW) ===== */
+.action-pill {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.action-ship {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.action-recall {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.action-none {
+  background-color: #e5e7eb;
+  color: #374151;
+}
+
+/* ===== PLACEHOLDER ===== */
 .placeholder-row {
   padding: 20px;
-  color: #6b7280;
   font-style: italic;
+  color: #6b7280;
 }
