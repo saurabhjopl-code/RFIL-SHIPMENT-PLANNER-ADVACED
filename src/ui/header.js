@@ -7,11 +7,10 @@ export function renderHeader() {
       <!-- LEFT: LOGO -->
       <div class="header-left">
         <img
-  src="assets/logo/logo.png"
-  alt="Company Logo"
-  class="app-logo"
-/>
-
+          src="assets/logo/logo.png"
+          alt="Company Logo"
+          class="app-logo"
+        />
       </div>
 
       <!-- CENTER: TITLE -->
@@ -24,7 +23,7 @@ export function renderHeader() {
 
       <!-- RIGHT: EXPORT -->
       <div class="header-right">
-        <button class="export-btn">
+        <button id="export-btn" class="export-btn" type="button">
           Export
         </button>
       </div>
@@ -32,5 +31,3 @@ export function renderHeader() {
     </div>
   `;
 }
-
-
