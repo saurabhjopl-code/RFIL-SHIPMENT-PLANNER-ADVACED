@@ -3,21 +3,17 @@ import { renderAmazonReport } from "./amazon.report.js";
 import { loadAllData } from "../../core/data-loader.js";
 
 /* ======================================================
-   BUILD AMAZON FC MAP (STOCK FROM FC STOCK SOURCE)
+   BUILD AMAZON FC MAP
 ====================================================== */
 async function buildAmazonFcMap() {
   const store = getAmazonStore();
   const rows = store?.rows || [];
 
-  // Load raw FC stock again (SAFE, cached by browser)
   const data = await loadAllData(() => {});
-  const amazonFcStock = data.fcStock.filter(
-    r => r.mp === "AMAZON IN"
-  );
+  const amazonFcStock = data.fcStock.filter(r => r.mp === "AMAZON IN");
 
   const fcMap = {};
 
-  /* ----- STOCK (MASTER SOURCE) ----- */
   amazonFcStock.forEach(r => {
     if (!fcMap[r.warehouseId]) {
       fcMap[r.warehouseId] = {
@@ -32,10 +28,8 @@ async function buildAmazonFcMap() {
     fcMap[r.warehouseId].totalStock += r.quantity;
   });
 
-  /* ----- SALES + SHIPMENTS (FROM ROWS) ----- */
   rows.forEach(r => {
     if (!fcMap[r.warehouseId]) {
-      // FC with sale but no stock (edge case)
       fcMap[r.warehouseId] = {
         fc: r.warehouseId,
         totalStock: 0,
@@ -57,15 +51,18 @@ async function buildAmazonFcMap() {
 }
 
 /* ======================================================
-   FC SUMMARY HTML
+   FC SUMMARY (SORT: TOTAL SALE ↓)
 ====================================================== */
 function renderFcSummary(fcMap) {
   let gStock = 0;
   let gSale = 0;
 
+  const rows = Object.values(fcMap)
+    .sort((a, b) => b.totalSale - a.totalSale);
+
   let html = "";
 
-  Object.values(fcMap).forEach(fc => {
+  rows.forEach(fc => {
     const drr = fc.totalSale / 30;
     const cover = drr > 0 ? fc.totalStock / drr : 0;
 
@@ -100,7 +97,7 @@ function renderFcSummary(fcMap) {
 }
 
 /* ======================================================
-   SHIPMENT & RECALL SUMMARY HTML
+   SHIPMENT & RECALL SUMMARY (SORT: SHIP QTY ↓)
 ====================================================== */
 function renderShipmentSummary(fcMap) {
   let gStock = 0;
@@ -109,9 +106,12 @@ function renderShipmentSummary(fcMap) {
   let gShip = 0;
   let gRecall = 0;
 
+  const rows = Object.values(fcMap)
+    .sort((a, b) => b.shipQty - a.shipQty);
+
   let html = "";
 
-  Object.values(fcMap).forEach(fc => {
+  rows.forEach(fc => {
     const drr = fc.totalSale / 30;
 
     gStock += fc.totalStock;
@@ -151,11 +151,10 @@ function renderShipmentSummary(fcMap) {
 }
 
 /* ======================================================
-   MAIN RENDER (ASYNC SAFE)
+   MAIN RENDER
 ====================================================== */
 export async function renderAmazonSummaries() {
   const container = document.getElementById("tab-content");
-
   const fcMap = await buildAmazonFcMap();
 
   container.innerHTML = `
