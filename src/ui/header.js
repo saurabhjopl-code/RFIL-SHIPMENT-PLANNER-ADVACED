@@ -7,7 +7,7 @@ export function renderHeader() {
       <!-- LEFT: LOGO -->
       <div class="header-left">
         <img 
-          src="./assets/logo/your-logo.png" 
+          src="/RFIL-SHIPMENT-PLANNER-ADVACED/src/assets/logo/your-logo.png" 
           alt="Company Logo" 
           class="app-logo"
         />
@@ -31,3 +31,4 @@ export function renderHeader() {
     </div>
   `;
 }
+
