@@ -17,6 +17,11 @@ import { runFlipkartEngine } from "./engines/flipkart.engine.js";
 import { setFlipkartRows } from "./stores/flipkart.store.js";
 import { renderFlipkartSummaries } from "./ui/flipkart/flipkart.summary.js";
 
+/* MYNTRA */
+import { runMyntraEngine } from "./engines/myntra.engine.js";
+import { setMyntraRows } from "./stores/myntra.store.js";
+import { renderMyntraSummaries } from "./ui/myntra/myntra.summary.js";
+
 let cachedData = null;
 let uniware40Cap = 0;
 
@@ -54,7 +59,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 /* ======================================================
-   TAB SWITCH HANDLERS (CALLED FROM tabs.js)
+   TAB LOADERS (CALLED FROM tabs.js)
 ====================================================== */
 
 export function loadAmazonTab() {
@@ -72,4 +77,17 @@ export function loadFlipkartTab() {
 
   setFlipkartRows(flipkartResult.rows);
   renderFlipkartSummaries();
+}
+
+export function loadMyntraTab() {
+  const myntraResult = runMyntraEngine({
+    sales: cachedData.sales,
+    fcStock: cachedData.fcStock,
+    uniwareStock: cachedData.uniwareStock,
+    companyRemarks: cachedData.companyRemarks,
+    uniware40CapRemaining: uniware40Cap,
+  });
+
+  setMyntraRows(myntraResult.rows);
+  renderMyntraSummaries();
 }
