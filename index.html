@@ -1,19 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Shipment Planner</title>
-
-  <!-- Redirect to actual app -->
-  <meta http-equiv="refresh" content="0; url=./src/">
-
-  <!-- Fallback -->
-  <script>
-    window.location.href = "./src/";
-  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="./styles/app.css" />
 </head>
 
 <body>
-  Redirecting to Shipment Planner…
+  <div id="app">
+
+    <!-- HEADER -->
+    <header id="app-header"></header>
+
+    <!-- LOADING PROGRESS -->
+    <section id="loading-progress"></section>
+
+    <!-- TABS -->
+    <section id="mp-tabs"></section>
+
+    <!-- CONTENT -->
+    <main id="app-content">
+      <div id="tab-content"></div>
+    </main>
+
+  </div>
+
+  <!-- XLSX EXPORT LIBRARY (GitHub Pages SAFE) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- APP ENTRY (CORRECT PATH) -->
+  <script type="module" src="./src/app.js"></script>
 </body>
 </html>
