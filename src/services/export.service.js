@@ -1,8 +1,8 @@
 /* ======================================================
-   PER-MP EXPORT SERVICE – VA-EXPORT-FINAL
-   GUARANTEES:
-   - Source column ALWAYS present
-   - FC column ALWAYS populated
+   FC-WISE EXPORT SERVICE – FINAL
+   - One Excel file per FC
+   - MP + SELLER merged naturally
+   - DEFAULT_FC excluded
 ====================================================== */
 
 import { getAmazonStore } from "../stores/amazon.store.js";
@@ -22,7 +22,7 @@ function ensureXLSX() {
 }
 
 /* ------------------------------------------------------
-   Resolve FC from ANY possible key
+   Resolve FC robustly
 ------------------------------------------------------ */
 function resolveFc(row) {
   return (
@@ -30,102 +30,137 @@ function resolveFc(row) {
     row.FC ||
     row.warehouseId ||
     row.warehouse ||
-    row.fulfillmentCenter ||
     ""
   );
 }
 
 /* ------------------------------------------------------
-   Normalize MP engine rows
+   Collect ALL rows grouped by FC
 ------------------------------------------------------ */
-function normalizeMpRow(r) {
-  return {
-    Source: "MP",
-    Style: r.styleId || r.Style || "",
-    SKU: r.sku || r.SKU || "",
-    FC: resolveFc(r),
-    "Sale Qty": r.saleQty ?? "",
-    DRR: r.drr ?? "",
-    "FC Stock": r.fcStock ?? "",
-    "Stock Cover": r.stockCover ?? "",
-    "Actual Shipment Qty": r.actualShipmentQty ?? "",
-    "Shipment Qty": r.shipmentQty ?? "",
-    "Recall Qty": r.recallQty ?? "",
-    Action: r.action || "",
-    Remarks: r.remark || "",
-  };
-}
+function collectRowsByFc() {
+  const fcMap = {};
 
-/* ------------------------------------------------------
-   Normalize Seller rows injected into MP
------------------------------------------------------- */
-function normalizeSellerRow(r) {
-  return {
-    Source: "SELLER",
-    Style: r.styleId,
-    SKU: r.sku,
-    FC: r.replenishmentFc,
-    "Sale Qty": r.saleQty,
-    DRR: r.drr,
-    "FC Stock": "",
-    "Stock Cover": "",
-    "Actual Shipment Qty": r.actualShipmentQty,
-    "Shipment Qty": r.shipmentQty,
-    "Recall Qty": 0,
-    Action: "SHIP",
-    Remarks: "From SELLER allocation",
-  };
-}
+  /* ---------- AMAZON ---------- */
+  const amazonRows = getAmazonStore()?.rows || [];
+  amazonRows.forEach(r => {
+    const fc = resolveFc(r);
+    if (!fc || fc === "DEFAULT_FC") return;
 
-/* ------------------------------------------------------
-   Build rows per MP
------------------------------------------------------- */
-function buildRows(mp) {
-  let mpRows = [];
+    fcMap[fc] = fcMap[fc] || [];
+    fcMap[fc].push({
+      Source: "MP",
+      MP: "AMAZON",
+      Style: r.styleId,
+      SKU: r.sku,
+      FC: fc,
+      "Sale Qty": r.saleQty,
+      DRR: r.drr,
+      "Actual Shipment Qty": r.actualShipmentQty,
+      "Shipment Qty": r.shipmentQty,
+      Action: r.action,
+      Remarks: r.remark || "",
+    });
+  });
 
-  if (mp === "AMAZON") {
-    mpRows = getAmazonStore()?.rows || [];
-  }
-  if (mp === "FLIPKART") {
-    mpRows = getFlipkartRows();
-  }
-  if (mp === "MYNTRA") {
-    mpRows = getMyntraRows();
-  }
+  /* ---------- FLIPKART ---------- */
+  getFlipkartRows().forEach(r => {
+    const fc = resolveFc(r);
+    if (!fc || fc === "DEFAULT_FC") return;
 
-  const normalizedMp = mpRows.map(normalizeMpRow);
+    fcMap[fc] = fcMap[fc] || [];
+    fcMap[fc].push({
+      Source: "MP",
+      MP: "FLIPKART",
+      Style: r.styleId,
+      SKU: r.sku,
+      FC: fc,
+      "Sale Qty": r.saleQty,
+      DRR: r.drr,
+      "Actual Shipment Qty": r.actualShipmentQty,
+      "Shipment Qty": r.shipmentQty,
+      Action: r.action,
+      Remarks: r.remark || "",
+    });
+  });
 
-  const sellerInjected = getSellerRows()
+  /* ---------- MYNTRA ---------- */
+  getMyntraRows().forEach(r => {
+    const fc = resolveFc(r);
+    if (!fc || fc === "DEFAULT_FC") return;
+
+    fcMap[fc] = fcMap[fc] || [];
+    fcMap[fc].push({
+      Source: "MP",
+      MP: "MYNTRA",
+      Style: r.styleId,
+      SKU: r.sku,
+      FC: fc,
+      "Sale Qty": r.saleQty,
+      DRR: r.drr,
+      "Actual Shipment Qty": r.actualShipmentQty,
+      "Shipment Qty": r.shipmentQty,
+      Action: r.action,
+      Remarks: r.remark || "",
+    });
+  });
+
+  /* ---------- SELLER ---------- */
+  getSellerRows()
     .filter(
       r =>
-        r.replenishmentMp === mp &&
         r.replenishmentFc &&
         r.replenishmentFc !== "DEFAULT_FC" &&
         r.shipmentQty > 0
     )
-    .map(normalizeSellerRow);
+    .forEach(r => {
+      const fc = r.replenishmentFc;
 
-  return [...normalizedMp, ...sellerInjected];
+      fcMap[fc] = fcMap[fc] || [];
+      fcMap[fc].push({
+        Source: "SELLER",
+        MP: r.replenishmentMp,
+        Style: r.styleId,
+        SKU: r.sku,
+        FC: fc,
+        "Sale Qty": r.saleQty,
+        DRR: r.drr,
+        "Actual Shipment Qty": r.actualShipmentQty,
+        "Shipment Qty": r.shipmentQty,
+        Action: "SHIP",
+        Remarks: "From SELLER allocation",
+      });
+    });
+
+  return fcMap;
 }
 
 /* ------------------------------------------------------
-   EXPORT ENTRY POINT
+   EXPORT ENTRY POINT (GLOBAL)
 ------------------------------------------------------ */
-export function exportMp(mp) {
+export function exportByFc() {
   if (!ensureXLSX()) return;
 
-  const rows = buildRows(mp);
-  if (!rows.length) {
-    alert(`No shipment data for ${mp}`);
+  const fcMap = collectRowsByFc();
+  const fcs = Object.keys(fcMap);
+
+  if (!fcs.length) {
+    alert("No FC shipment data available");
     return;
   }
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, ws, "Shipments");
+  const today = new Date().toISOString().slice(0, 10);
 
-  XLSX.writeFile(
-    wb,
-    `Shipment_${mp}_${new Date().toISOString().slice(0, 10)}.xlsx`
-  );
+  fcs.forEach(fc => {
+    const rows = fcMap[fc];
+    if (!rows.length) return;
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, "Shipments");
+
+    XLSX.writeFile(
+      wb,
+      `Shipment_FC_${fc}_${today}.xlsx`
+    );
+  });
 }
