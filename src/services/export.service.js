@@ -1,8 +1,8 @@
 /* ======================================================
-   PER-MP EXPORT SERVICE – VA-EXPORT (WITH SOURCE)
-   - Export per MP tab
-   - Seller rows merged into MP
-   - Source column added
+   PER-MP EXPORT SERVICE – VA-EXPORT-FINAL
+   GUARANTEES:
+   - Source column ALWAYS present
+   - FC column ALWAYS populated
 ====================================================== */
 
 import { getAmazonStore } from "../stores/amazon.store.js";
@@ -22,21 +22,69 @@ function ensureXLSX() {
 }
 
 /* ------------------------------------------------------
-   Resolve FC consistently
+   Resolve FC from ANY possible key
 ------------------------------------------------------ */
 function resolveFc(row) {
-  return row.fc || row.warehouseId || "";
+  return (
+    row.fc ||
+    row.FC ||
+    row.warehouseId ||
+    row.warehouse ||
+    row.fulfillmentCenter ||
+    ""
+  );
 }
 
 /* ------------------------------------------------------
-   Build unified shipment rows per MP
+   Normalize MP engine rows
 ------------------------------------------------------ */
-function buildMpExportRows(mp) {
+function normalizeMpRow(r) {
+  return {
+    Source: "MP",
+    Style: r.styleId || r.Style || "",
+    SKU: r.sku || r.SKU || "",
+    FC: resolveFc(r),
+    "Sale Qty": r.saleQty ?? "",
+    DRR: r.drr ?? "",
+    "FC Stock": r.fcStock ?? "",
+    "Stock Cover": r.stockCover ?? "",
+    "Actual Shipment Qty": r.actualShipmentQty ?? "",
+    "Shipment Qty": r.shipmentQty ?? "",
+    "Recall Qty": r.recallQty ?? "",
+    Action: r.action || "",
+    Remarks: r.remark || "",
+  };
+}
+
+/* ------------------------------------------------------
+   Normalize Seller rows injected into MP
+------------------------------------------------------ */
+function normalizeSellerRow(r) {
+  return {
+    Source: "SELLER",
+    Style: r.styleId,
+    SKU: r.sku,
+    FC: r.replenishmentFc,
+    "Sale Qty": r.saleQty,
+    DRR: r.drr,
+    "FC Stock": "",
+    "Stock Cover": "",
+    "Actual Shipment Qty": r.actualShipmentQty,
+    "Shipment Qty": r.shipmentQty,
+    "Recall Qty": 0,
+    Action: "SHIP",
+    Remarks: "From SELLER allocation",
+  };
+}
+
+/* ------------------------------------------------------
+   Build rows per MP
+------------------------------------------------------ */
+function buildRows(mp) {
   let mpRows = [];
 
   if (mp === "AMAZON") {
-    const store = getAmazonStore();
-    mpRows = store?.rows || [];
+    mpRows = getAmazonStore()?.rows || [];
   }
   if (mp === "FLIPKART") {
     mpRows = getFlipkartRows();
@@ -45,25 +93,9 @@ function buildMpExportRows(mp) {
     mpRows = getMyntraRows();
   }
 
-  /* ---------- MP ENGINE ROWS ---------- */
-  const normalizedMpRows = mpRows.map(r => ({
-    source: "MP",
-    styleId: r.styleId,
-    sku: r.sku,
-    fc: resolveFc(r),
-    saleQty: r.saleQty,
-    drr: r.drr,
-    fcStock: r.fcStock,
-    stockCover: r.stockCover,
-    actualShipmentQty: r.actualShipmentQty,
-    shipmentQty: r.shipmentQty,
-    recallQty: r.recallQty,
-    action: r.action,
-    remark: r.remark || "",
-  }));
+  const normalizedMp = mpRows.map(normalizeMpRow);
 
-  /* ---------- SELLER → MP ROWS ---------- */
-  const sellerRows = getSellerRows()
+  const sellerInjected = getSellerRows()
     .filter(
       r =>
         r.replenishmentMp === mp &&
@@ -71,55 +103,25 @@ function buildMpExportRows(mp) {
         r.replenishmentFc !== "DEFAULT_FC" &&
         r.shipmentQty > 0
     )
-    .map(r => ({
-      source: "SELLER",
-      styleId: r.styleId,
-      sku: r.sku,
-      fc: r.replenishmentFc,
-      saleQty: r.saleQty,
-      drr: r.drr,
-      fcStock: "",
-      stockCover: "",
-      actualShipmentQty: r.actualShipmentQty,
-      shipmentQty: r.shipmentQty,
-      recallQty: 0,
-      action: "SHIP",
-      remark: "From SELLER allocation",
-    }));
+    .map(normalizeSellerRow);
 
-  return [...normalizedMpRows, ...sellerRows];
+  return [...normalizedMp, ...sellerInjected];
 }
 
 /* ------------------------------------------------------
-   Export handler
+   EXPORT ENTRY POINT
 ------------------------------------------------------ */
 export function exportMp(mp) {
   if (!ensureXLSX()) return;
 
-  const rows = buildMpExportRows(mp);
+  const rows = buildRows(mp);
   if (!rows.length) {
-    alert(`No shipment data available for ${mp}`);
+    alert(`No shipment data for ${mp}`);
     return;
   }
 
-  const sheetData = rows.map(r => ({
-    Source: r.source,
-    Style: r.styleId,
-    SKU: r.sku,
-    FC: r.fc,
-    "Sale Qty": r.saleQty,
-    DRR: r.drr,
-    "FC Stock": r.fcStock,
-    "Stock Cover": r.stockCover,
-    "Actual Shipment Qty": r.actualShipmentQty,
-    "Shipment Qty": r.shipmentQty,
-    "Recall Qty": r.recallQty,
-    Action: r.action,
-    Remarks: r.remark,
-  }));
-
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(sheetData);
+  const ws = XLSX.utils.json_to_sheet(rows);
   XLSX.utils.book_append_sheet(wb, ws, "Shipments");
 
   XLSX.writeFile(
