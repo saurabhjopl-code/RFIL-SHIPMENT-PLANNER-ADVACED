@@ -7,7 +7,6 @@ export function renderAmazonSummaries() {
     <!-- FC SUMMARY -->
     <section class="summary-section">
       <h2 class="summary-title">FC Summary</h2>
-
       <table class="summary-table">
         <thead>
           <tr>
@@ -31,7 +30,6 @@ export function renderAmazonSummaries() {
     <!-- SHIPMENT & RECALL SUMMARY -->
     <section class="summary-section">
       <h2 class="summary-title">Shipment & Recall Summary</h2>
-
       <table class="summary-table">
         <thead>
           <tr>
