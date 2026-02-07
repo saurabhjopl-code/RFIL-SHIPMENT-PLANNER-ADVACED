@@ -1,56 +1,13 @@
 import { getAmazonStore } from "../../stores/amazon.store.js";
 import { renderAmazonReport } from "./amazon.report.js";
 
-function buildFcSummary(rows) {
+/* ======================================================
+   HELPERS
+====================================================== */
+
+function buildFcMaps(rows) {
   const fcMap = {};
-  let grandSale = 0;
-  let grandStock = 0;
-
-  rows.forEach(r => {
-    if (!fcMap[r.warehouseId]) {
-      fcMap[r.warehouseId] = {
-        fc: r.warehouseId,
-        totalSale: 0,
-        totalStock: 0,
-      };
-    }
-    fcMap[r.warehouseId].totalSale += r.saleQty;
-    fcMap[r.warehouseId].totalStock += r.fcStock;
-    grandSale += r.saleQty;
-    grandStock += r.fcStock;
-  });
-
-  const rowsHtml = Object.values(fcMap).map(fc => {
-    const drr = fc.totalSale / 30;
-    const cover = drr > 0 ? fc.totalStock / drr : 0;
-
-    return `
-      <tr>
-        <td>${fc.fc}</td>
-        <td>${fc.totalStock}</td>
-        <td>${fc.totalSale}</td>
-        <td>${drr.toFixed(2)}</td>
-        <td>${cover.toFixed(1)}</td>
-      </tr>
-    `;
-  }).join("");
-
-  const grandDrr = grandSale / 30;
-  const grandCover = grandDrr > 0 ? grandStock / grandDrr : 0;
-
-  return rowsHtml + `
-    <tr class="grand-total">
-      <td><b>Grand Total</b></td>
-      <td><b>${grandStock}</b></td>
-      <td><b>${grandSale}</b></td>
-      <td><b>${grandDrr.toFixed(2)}</b></td>
-      <td><b>${grandCover.toFixed(1)}</b></td>
-    </tr>
-  `;
-}
-
-function buildShipmentSummary(rows) {
-  const fcMap = {};
+  const stockSeen = new Set(); // FC|SKU dedupe for stock
 
   rows.forEach(r => {
     if (!fcMap[r.warehouseId]) {
@@ -65,80 +22,126 @@ function buildShipmentSummary(rows) {
     }
 
     const fc = fcMap[r.warehouseId];
+
+    // ✅ Sale is row-based
     fc.totalSale += r.saleQty;
-    fc.totalStock += r.fcStock;
+
+    // ✅ Stock is FC+SKU unique
+    const stockKey = `${r.warehouseId}__${r.sku}`;
+    if (!stockSeen.has(stockKey)) {
+      fc.totalStock += r.fcStock;
+      stockSeen.add(stockKey);
+    }
+
+    // Shipment metrics
     fc.actualShip += r.actualShipmentQty;
     fc.shipQty += r.shipmentQty;
     fc.recallQty += r.recallQty;
   });
 
-  return Object.values(fcMap).map(fc => {
-    const drr = fc.totalSale / 30;
-
-    return `
-      <tr>
-        <td>${fc.fc}</td>
-        <td>${fc.totalStock}</td>
-        <td>${fc.totalSale}</td>
-        <td>${drr.toFixed(2)}</td>
-        <td>${fc.actualShip}</td>
-        <td class="ship-col">${fc.shipQty}</td>
-        <td class="recall-col">${fc.recallQty}</td>
-      </tr>
-    `;
-  }).join("");
+  return fcMap;
 }
 
-export function renderAmazonSummaries() {
-  const container = document.getElementById("tab-content");
-  const store = getAmazonStore();
-  const rows = store?.rows || [];
+/* ======================================================
+   FC SUMMARY
+====================================================== */
 
-  container.innerHTML = `
-    <!-- FC SUMMARY -->
-    <section class="summary-section">
-      <h2 class="summary-title">FC Summary</h2>
-      <table class="summary-table">
-        <thead>
-          <tr>
-            <th>FC</th>
-            <th>Total Stock</th>
-            <th>Total Sale</th>
-            <th>DRR</th>
-            <th>Stock Cover</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.length ? buildFcSummary(rows) : `
-            <tr><td colspan="5" class="placeholder-row">No data</td></tr>
-          `}
-        </tbody>
-      </table>
-    </section>
+function renderFcSummary(fcMap) {
+  let grandSale = 0;
+  let grandStock = 0;
 
-    <!-- SHIPMENT & RECALL SUMMARY -->
-    <section class="summary-section">
-      <h2 class="summary-title">Shipment & Recall Summary</h2>
-      <table class="summary-table">
-        <thead>
-          <tr>
-            <th>FC</th>
-            <th>Total Stock</th>
-            <th>Total Sale</th>
-            <th>DRR</th>
-            <th>Actual Shipment Qty</th>
-            <th class="ship-col">Shipment Qty (Allocated)</th>
-            <th class="recall-col">Recall Qty</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.length ? buildShipmentSummary(rows) : `
-            <tr><td colspan="7" class="placeholder-row">No data</td></tr>
-          `}
-        </tbody>
-      </table>
-    </section>
+  const rowsHtml = Object.values(fcMap)
+    .map(fc => {
+      const drr = fc.totalSale / 30;
+      const cover = drr > 0 ? fc.totalStock / drr : 0;
 
-    ${renderAmazonReport()}
-  `;
+      grandSale += fc.totalSale;
+      grandStock += fc.totalStock;
+
+      return `
+        <tr>
+          <td>${fc.fc}</td>
+          <td>${fc.totalStock}</td>
+          <td>${fc.totalSale}</td>
+          <td>${drr.toFixed(2)}</td>
+          <td>${cover.toFixed(1)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  const grandDrr = grandSale / 30;
+  const grandCover = grandDrr > 0 ? grandStock / grandDrr : 0;
+
+  return (
+    rowsHtml +
+    `
+    <tr class="grand-total">
+      <td><b>Amazon All FC</b></td>
+      <td><b>${grandStock}</b></td>
+      <td><b>${grandSale}</b></td>
+      <td><b>${grandDrr.toFixed(2)}</b></td>
+      <td><b>${grandCover.toFixed(1)}</b></td>
+    </tr>
+  `
+  );
 }
+
+/* ======================================================
+   SHIPMENT & RECALL SUMMARY
+====================================================== */
+
+function renderShipmentSummary(fcMap) {
+  let gSale = 0;
+  let gStock = 0;
+  let gActual = 0;
+  let gShip = 0;
+  let gRecall = 0;
+
+  const rowsHtml = Object.values(fcMap)
+    .map(fc => {
+      const drr = fc.totalSale / 30;
+
+      gSale += fc.totalSale;
+      gStock += fc.totalStock;
+      gActual += fc.actualShip;
+      gShip += fc.shipQty;
+      gRecall += fc.recallQty;
+
+      return `
+        <tr>
+          <td>${fc.fc}</td>
+          <td>${fc.totalStock}</td>
+          <td>${fc.totalSale}</td>
+          <td>${drr.toFixed(2)}</td>
+          <td>${fc.actualShip}</td>
+          <td class="ship-col">${fc.shipQty}</td>
+          <td class="recall-col">${fc.recallQty}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  const gDrr = gSale / 30;
+
+  return (
+    rowsHtml +
+    `
+    <tr class="grand-total">
+      <td><b>Amazon All FC</b></td>
+      <td><b>${gStock}</b></td>
+      <td><b>${gSale}</b></td>
+      <td><b>${gDrr.toFixed(2)}</b></td>
+      <td><b>${gActual}</b></td>
+      <td class="ship-col"><b>${gShip}</b></td>
+      <td class="recall-col"><b>${gRecall}</b></td>
+    </tr>
+  `
+  );
+}
+
+/* ======================================================
+   MAIN RENDER
+====================================================== */
+
+export function rende
