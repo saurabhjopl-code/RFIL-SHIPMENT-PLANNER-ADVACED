@@ -1,19 +1,45 @@
 import { getAmazonStore } from "../../stores/amazon.store.js";
 import { renderAmazonReport } from "./amazon.report.js";
+import { loadAllData } from "../../core/data-loader.js";
 
 /* ======================================================
-   BUILD FC MAP (DEDUP STOCK BY FC+SKU)
+   BUILD AMAZON FC MAP (STOCK FROM FC STOCK SOURCE)
 ====================================================== */
-function buildFcMap(rows) {
-  const fcMap = {};
-  const stockSeen = new Set();
+async function buildAmazonFcMap() {
+  const store = getAmazonStore();
+  const rows = store?.rows || [];
 
-  rows.forEach(r => {
+  // Load raw FC stock again (SAFE, cached by browser)
+  const data = await loadAllData(() => {});
+  const amazonFcStock = data.fcStock.filter(
+    r => r.mp === "AMAZON IN"
+  );
+
+  const fcMap = {};
+
+  /* ----- STOCK (MASTER SOURCE) ----- */
+  amazonFcStock.forEach(r => {
     if (!fcMap[r.warehouseId]) {
       fcMap[r.warehouseId] = {
         fc: r.warehouseId,
-        totalSale: 0,
         totalStock: 0,
+        totalSale: 0,
+        actualShip: 0,
+        shipQty: 0,
+        recallQty: 0,
+      };
+    }
+    fcMap[r.warehouseId].totalStock += r.quantity;
+  });
+
+  /* ----- SALES + SHIPMENTS (FROM ROWS) ----- */
+  rows.forEach(r => {
+    if (!fcMap[r.warehouseId]) {
+      // FC with sale but no stock (edge case)
+      fcMap[r.warehouseId] = {
+        fc: r.warehouseId,
+        totalStock: 0,
+        totalSale: 0,
         actualShip: 0,
         shipQty: 0,
         recallQty: 0,
@@ -21,18 +47,7 @@ function buildFcMap(rows) {
     }
 
     const fc = fcMap[r.warehouseId];
-
-    // Sale (row based)
     fc.totalSale += r.saleQty;
-
-    // Stock (unique FC+SKU)
-    const stockKey = `${r.warehouseId}__${r.sku}`;
-    if (!stockSeen.has(stockKey)) {
-      fc.totalStock += r.fcStock;
-      stockSeen.add(stockKey);
-    }
-
-    // Shipment
     fc.actualShip += r.actualShipmentQty;
     fc.shipQty += r.shipmentQty;
     fc.recallQty += r.recallQty;
@@ -44,9 +59,9 @@ function buildFcMap(rows) {
 /* ======================================================
    FC SUMMARY HTML
 ====================================================== */
-function buildFcSummaryHtml(fcMap) {
-  let gSale = 0;
+function renderFcSummary(fcMap) {
   let gStock = 0;
+  let gSale = 0;
 
   let html = "";
 
@@ -54,8 +69,8 @@ function buildFcSummaryHtml(fcMap) {
     const drr = fc.totalSale / 30;
     const cover = drr > 0 ? fc.totalStock / drr : 0;
 
-    gSale += fc.totalSale;
     gStock += fc.totalStock;
+    gSale += fc.totalSale;
 
     html += `
       <tr>
@@ -87,9 +102,9 @@ function buildFcSummaryHtml(fcMap) {
 /* ======================================================
    SHIPMENT & RECALL SUMMARY HTML
 ====================================================== */
-function buildShipmentSummaryHtml(fcMap) {
-  let gSale = 0;
+function renderShipmentSummary(fcMap) {
   let gStock = 0;
+  let gSale = 0;
   let gActual = 0;
   let gShip = 0;
   let gRecall = 0;
@@ -99,8 +114,8 @@ function buildShipmentSummaryHtml(fcMap) {
   Object.values(fcMap).forEach(fc => {
     const drr = fc.totalSale / 30;
 
-    gSale += fc.totalSale;
     gStock += fc.totalStock;
+    gSale += fc.totalSale;
     gActual += fc.actualShip;
     gShip += fc.shipQty;
     gRecall += fc.recallQty;
@@ -136,19 +151,12 @@ function buildShipmentSummaryHtml(fcMap) {
 }
 
 /* ======================================================
-   MAIN RENDER
+   MAIN RENDER (ASYNC SAFE)
 ====================================================== */
-export function renderAmazonSummaries() {
+export async function renderAmazonSummaries() {
   const container = document.getElementById("tab-content");
-  const store = getAmazonStore();
-  const rows = store?.rows || [];
 
-  if (!rows.length) {
-    container.innerHTML = `<div class="placeholder-row">No data</div>`;
-    return;
-  }
-
-  const fcMap = buildFcMap(rows);
+  const fcMap = await buildAmazonFcMap();
 
   container.innerHTML = `
     <section class="summary-section">
@@ -164,7 +172,7 @@ export function renderAmazonSummaries() {
           </tr>
         </thead>
         <tbody>
-          ${buildFcSummaryHtml(fcMap)}
+          ${renderFcSummary(fcMap)}
         </tbody>
       </table>
     </section>
@@ -184,7 +192,7 @@ export function renderAmazonSummaries() {
           </tr>
         </thead>
         <tbody>
-          ${buildShipmentSummaryHtml(fcMap)}
+          ${renderShipmentSummary(fcMap)}
         </tbody>
       </table>
     </section>
