@@ -1,18 +1,24 @@
 /* ======================================================
    EXPORT SERVICE – VA4.3
-   GitHub Pages SAFE (uses window.XLSX)
+   GitHub Pages SAFE
 ====================================================== */
 
-import { getAmazonRows } from "../stores/amazon.store.js";
+import { getAmazonStore } from "../stores/amazon.store.js";
 import { getFlipkartRows } from "../stores/flipkart.store.js";
 import { getMyntraRows } from "../stores/myntra.store.js";
 import { getSellerRows } from "../stores/seller.store.js";
 
+/* ------------------------------------------------------
+   Helper
+------------------------------------------------------ */
 function addSheet(workbook, sheetName, rows) {
   const ws = window.XLSX.utils.json_to_sheet(rows);
   window.XLSX.utils.book_append_sheet(workbook, ws, sheetName);
 }
 
+/* ------------------------------------------------------
+   MAIN EXPORT
+------------------------------------------------------ */
 export function exportShipmentPlanner() {
   if (!window.XLSX) {
     alert("Export library not loaded");
@@ -22,10 +28,15 @@ export function exportShipmentPlanner() {
   const wb = window.XLSX.utils.book_new();
 
   /* ================= AMAZON ================= */
+  const amazonStore = getAmazonStore();
+  const amazonRows = amazonStore && Array.isArray(amazonStore.rows)
+    ? amazonStore.rows
+    : [];
+
   addSheet(
     wb,
     "AMAZON",
-    getAmazonRows().map(r => ({
+    amazonRows.map(r => ({
       MP: "AMAZON",
       Style: r.styleId,
       SKU: r.sku,
