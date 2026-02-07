@@ -1,8 +1,15 @@
 /* ======================================================
-   SELLER ENGINE – VA-SELLER (FC + MP WEIGHTED SPLIT)
+   SELLER ENGINE – VA-SELLER (FINAL)
+   - FC weighted by MP demand
+   - Fallback to FC stock
+   - Final fallback to system FC priority
+   - No DEFAULT_FC ever
 ====================================================== */
 
 const TARGET_DAYS = 45;
+
+/* 🔒 SYSTEM FC PRIORITY (LAST RESORT ONLY) */
+const FALLBACK_FC_PRIORITY = ["JPX1", "JPX2", "BLR1", "DEL1"];
 
 function round2(num) {
   return Math.round(num * 100) / 100;
@@ -19,6 +26,7 @@ function groupBy(arr, keyFn) {
 
 export function runSellerEngine({
   sales,
+  fcStock,
   uniwareStock,
   companyRemarks,
   uniware40CapRemaining,
@@ -31,15 +39,21 @@ export function runSellerEngine({
   );
 
   /* ---------------- SELLER SALES ---------------- */
-  const sellerSales = sales.filter(
-    r => r.warehouseId === "SELLER"
-  );
+  const sellerSales = sales.filter(r => r.warehouseId === "SELLER");
   const sellerBySku = groupBy(sellerSales, r => r.sku);
 
-  /* ---------------- MP SALES (FOR FC + MP MAP) ---------------- */
-  const mpSales = sales.filter(
-    r => r.warehouseId !== "SELLER"
-  );
+  /* ---------------- MP SALES ---------------- */
+  const mpSales = sales.filter(r => r.warehouseId !== "SELLER");
+
+  /* ---------------- FC STOCK MAP ---------------- */
+  const fcStockBySku = {};
+  fcStock.forEach(r => {
+    if (!fcStockBySku[r.sku]) fcStockBySku[r.sku] = [];
+    fcStockBySku[r.sku].push({
+      fc: r.warehouseId,
+      qty: r.quantity,
+    });
+  });
 
   /* ---------------- UNIWARE MAP ---------------- */
   const uniwareMap = Object.fromEntries(
@@ -59,6 +73,7 @@ export function runSellerEngine({
 
     const drr = round2(saleQty / 30);
 
+    /* ---------- CLOSED STYLE ---------- */
     if (closedStyles.has(styleId)) {
       results.push({
         mp: "SELLER",
@@ -113,74 +128,97 @@ export function runSellerEngine({
       return;
     }
 
-    /* ---------------- FC DEMAND MAP ---------------- */
+    /* ======================================================
+       1️⃣ MP FC WEIGHTED SPLIT
+    ====================================================== */
     const skuMpSales = mpSales.filter(r => r.sku === sku);
-
     const fcSaleMap = {};
+
     skuMpSales.forEach(r => {
       fcSaleMap[r.warehouseId] =
         (fcSaleMap[r.warehouseId] || 0) + r.quantity;
     });
 
-    const totalMpSale = Object.values(fcSaleMap)
-      .reduce((s, v) => s + v, 0);
+    const totalMpSale = Object.values(fcSaleMap).reduce(
+      (s, v) => s + v,
+      0
+    );
 
-    let fcAllocations = [];
+    let allocations = [];
 
-    if (totalMpSale === 0) {
-      fcAllocations.push({
-        fc: "DEFAULT_FC",
-        qty: sellerShipmentQty,
-      });
-    } else {
+    if (totalMpSale > 0) {
       Object.entries(fcSaleMap).forEach(([fc, fcSale]) => {
-        const qty = Math.round(
-          sellerShipmentQty * (fcSale / totalMpSale)
-        );
-        fcAllocations.push({ fc, qty });
+        allocations.push({
+          fc,
+          qty: Math.round(
+            sellerShipmentQty * (fcSale / totalMpSale)
+          ),
+          mp: Object.entries(
+            skuMpSales
+              .filter(r => r.warehouseId === fc)
+              .reduce((a, r) => {
+                a[r.mp] = (a[r.mp] || 0) + r.quantity;
+                return a;
+              }, {})
+          ).sort((a, b) => b[1] - a[1])[0][0],
+        });
       });
 
-      const allocated = fcAllocations.reduce(
+      const allocated = allocations.reduce(
         (s, r) => s + r.qty,
         0
       );
       const diff = sellerShipmentQty - allocated;
 
       if (diff !== 0) {
-        const topFc = Object.entries(fcSaleMap)
-          .sort((a, b) => b[1] - a[1])[0][0];
-
-        const target = fcAllocations.find(r => r.fc === topFc);
-        if (target) target.qty += diff;
+        allocations.sort((a, b) => b.qty - a.qty)[0].qty += diff;
       }
     }
 
-    /* ---------------- PUSH FC + MP ROWS ---------------- */
-    fcAllocations.forEach(({ fc, qty }) => {
-      if (qty <= 0) return;
+    /* ======================================================
+       2️⃣ FALLBACK TO FC STOCK
+    ====================================================== */
+    if (allocations.length === 0) {
+      const stockFcs = (fcStockBySku[sku] || []).sort(
+        (a, b) => b.qty - a.qty
+      );
 
-      const mpForFc = skuMpSales
-        .filter(r => r.warehouseId === fc)
-        .reduce((acc, r) => {
-          acc[r.mp] = (acc[r.mp] || 0) + r.quantity;
-          return acc;
-        }, {});
+      if (stockFcs.length > 0) {
+        allocations.push({
+          fc: stockFcs[0].fc,
+          qty: sellerShipmentQty,
+          mp: "MIXED",
+        });
+      }
+    }
 
-      const replenishmentMp =
-        Object.entries(mpForFc).length
-          ? Object.entries(mpForFc).sort((a, b) => b[1] - a[1])[0][0]
-          : "N/A";
+    /* ======================================================
+       3️⃣ SYSTEM FALLBACK
+    ====================================================== */
+    if (allocations.length === 0) {
+      allocations.push({
+        fc: FALLBACK_FC_PRIORITY[0],
+        qty: sellerShipmentQty,
+        mp: "SYSTEM",
+      });
+    }
+
+    /* ======================================================
+       PUSH ROWS
+    ====================================================== */
+    allocations.forEach(a => {
+      if (a.qty <= 0) return;
 
       results.push({
         mp: "SELLER",
         sku,
         styleId,
-        replenishmentFc: fc,
-        replenishmentMp,
+        replenishmentFc: a.fc,
+        replenishmentMp: a.mp,
         saleQty,
         drr,
         actualShipmentQty,
-        shipmentQty: qty,
+        shipmentQty: a.qty,
         action: "SHIP",
         remark:
           sellerShipmentQty < actualShipmentQty
