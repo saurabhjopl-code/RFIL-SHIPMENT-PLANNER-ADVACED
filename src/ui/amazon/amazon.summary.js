@@ -1,3 +1,5 @@
+import { renderAmazonReport } from "./amazon.report.js";
+
 export function renderAmazonSummaries() {
   const container = document.getElementById("tab-content");
 
@@ -51,5 +53,7 @@ export function renderAmazonSummaries() {
         </tbody>
       </table>
     </section>
+
+    ${renderAmazonReport()}
   `;
 }
