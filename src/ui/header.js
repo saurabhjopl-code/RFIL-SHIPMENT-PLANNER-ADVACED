@@ -1,4 +1,4 @@
-import { exportByFc } from "../services/export.service.js";
+import { exportCurrentReportTable } from "../services/export.service.js";
 
 export function renderHeader() {
   const header = document.getElementById("app-header");
@@ -6,7 +6,6 @@ export function renderHeader() {
   header.innerHTML = `
     <div class="header-container">
 
-      <!-- LEFT: LOGO -->
       <div class="header-left">
         <img
           src="assets/logo/logo.png"
@@ -15,7 +14,6 @@ export function renderHeader() {
         />
       </div>
 
-      <!-- CENTER: TITLE -->
       <div class="header-center">
         <h1 class="app-title">Shipment Planner</h1>
         <p class="app-subtitle">
@@ -23,7 +21,6 @@ export function renderHeader() {
         </p>
       </div>
 
-      <!-- RIGHT: EXPORT -->
       <div class="header-right">
         <button id="export-btn" class="export-btn" type="button">
           Export
@@ -33,8 +30,7 @@ export function renderHeader() {
     </div>
   `;
 
-  const btn = document.getElementById("export-btn");
-  btn.onclick = () => {
-    exportByFc();
+  document.getElementById("export-btn").onclick = () => {
+    exportCurrentReportTable();
   };
 }
