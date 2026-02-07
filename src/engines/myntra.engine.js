@@ -5,7 +5,7 @@
 ====================================================== */
 
 const TARGET_DAYS = 45;
-const RECALL_DAYS = 90;
+const RECALL_DAYS = 60;
 
 function groupBy(arr, keyFn) {
   return arr.reduce((acc, item) => {
@@ -165,3 +165,4 @@ export function runMyntraEngine({
     uniwareUsed,
   };
 }
+
