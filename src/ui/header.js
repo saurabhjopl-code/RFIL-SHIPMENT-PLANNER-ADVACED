@@ -30,19 +30,12 @@ export function renderHeader() {
     </div>
   `;
 
-  const btn = document.getElementById("export-btn");
-
-  btn.onclick = () => {
+  document.getElementById("export-btn").onclick = () => {
     const activeTab =
       document.querySelector(".mp-tab.active")?.dataset?.mp;
 
-    if (!activeTab) {
-      alert("No MP tab active");
-      return;
-    }
-
-    if (activeTab === "SELLER") {
-      alert("Seller export is not applicable");
+    if (!activeTab || activeTab === "SELLER") {
+      alert("Export available only for Amazon / Flipkart / Myntra");
       return;
     }
 
